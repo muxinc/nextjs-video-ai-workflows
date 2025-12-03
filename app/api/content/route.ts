@@ -4,12 +4,8 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   const { topic } = await request.json();
-
-  // Executes asynchronously and doesn't block your app
+  // gets called async
   const ret = await start(aiContentWorkflow, [topic]);
-  console.log('debug', ret);
 
-  return NextResponse.json({
-    message: "AI content workflow started",
-  });
+  return NextResponse.json(ret);
 }

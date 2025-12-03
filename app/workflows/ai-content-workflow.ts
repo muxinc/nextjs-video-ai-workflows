@@ -16,10 +16,12 @@ async function summarizeDraft (draft: string) {
 
 export async function aiContentWorkflow(topic: string) {
   'use workflow';
- 
+
+  // this is a function with 'use step';
   const draft = await generateDraft(topic);
  
+  // this is a function with 'use step';
   const summary = await summarizeDraft(draft as string);
 
-  return { draft, summary };
+  return { summary };
 }
