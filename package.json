@@ -6,13 +6,26 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync-ai": "./scripts/sync-ai.sh"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.53",
+    "@ai-sdk/google": "^2.0.44",
+    "@ai-sdk/openai": "^2.0.77",
+    "@aws-sdk/client-s3": "^3.943.0",
+    "@aws-sdk/lib-storage": "^3.943.0",
+    "@aws-sdk/s3-request-presigner": "^3.943.0",
+    "@mux/mux-node": "^12.8.1",
+    "ai": "^5.0.106",
+    "dotenv": "^17.2.3",
+    "dotenv-expand": "^12.0.3",
     "next": "16.0.6",
+    "p-retry": "^7.1.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "workflow": "^4.0.1-beta.22"
+    "workflow": "^4.0.1-beta.22",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
