@@ -1,4 +1,4 @@
-import { withWorkflow } from 'workflow/next';
+// import { withWorkflow } from 'workflow/next';
 import type { NextConfig } from "next";
 import path from 'path';
 
@@ -8,4 +8,5 @@ const nextConfig: NextConfig = {
   }
 }
 
-export default withWorkflow(nextConfig);
+// export default withWorkflow(nextConfig);
+export default nextConfig;
