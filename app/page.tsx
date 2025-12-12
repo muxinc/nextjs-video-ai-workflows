@@ -131,7 +131,7 @@ export default function Home() {
                 badge="SYNC CALL"
                 badgeClass="badge-sync"
                 title="Direct Function Calls"
-                description="Simply call @mux/ai primitives and workflows directly from server-side code with zero workflow infrastructure."
+                description="Simply call @mux/ai primitives and workflows directly from server-side code with minimal workflow infrastructure."
                 example="getSummaryAndTags()"
               />
               <LevelCard

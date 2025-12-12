@@ -77,14 +77,6 @@ function formatDuration(seconds?: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-function formatDate(createdAt?: string): string {
-  if (!createdAt)
-    return "";
-  // Mux returns created_at as an ISO 8601 string
-  const date = new Date(createdAt);
-  return date.toLocaleDateString("en-US", { year: "numeric", month: "short" });
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Components
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,7 +86,6 @@ function TalkCard({ asset }: TalkCardProps) {
   const title = getAssetTitle(asset);
   const slug = getAssetSlug(asset);
   const duration = formatDuration(asset.duration);
-  const dateStr = formatDate(asset.created_at);
 
   // TODO: Add AI-generated tags from Level 1 when available
   const tags: string[] = [];
@@ -136,16 +127,6 @@ function TalkCard({ asset }: TalkCardProps) {
           <h3 className="line-clamp-2 text-lg font-bold leading-tight group-hover:text-accent">
             {title}
           </h3>
-
-          {/* Meta info */}
-          {dateStr && (
-            <p
-              className="text-xs text-foreground-muted"
-              style={{ fontFamily: "var(--font-space-mono)" }}
-            >
-              {dateStr}
-            </p>
-          )}
 
           {/* Tags (when AI-generated) */}
           {tags.length > 0 && (
