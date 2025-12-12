@@ -14,7 +14,9 @@ export function Header({ currentPath }: HeaderProps) {
             className="text-xl font-extrabold tracking-[0.15em]"
             style={{ fontFamily: "var(--font-syne)" }}
           >
-            DEMU<span className="inline-block -rotate-12 scale-110">X</span>ED
+            DEMU
+            <span className="inline-block -rotate-12 scale-110">X</span>
+            ED
           </h1>
           <span
             className="text-[10px] tracking-[0.2em] text-foreground-muted"
@@ -27,9 +29,9 @@ export function Header({ currentPath }: HeaderProps) {
           <Link
             href="/media"
             className={`border-2 border-border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_var(--border)] ${
-              currentPath === "/media"
-                ? "bg-foreground text-surface"
-                : "bg-surface text-foreground"
+              currentPath === "/media" ?
+                "bg-foreground text-surface" :
+                "bg-surface text-foreground"
             }`}
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
@@ -40,4 +42,3 @@ export function Header({ currentPath }: HeaderProps) {
     </header>
   );
 }
-
