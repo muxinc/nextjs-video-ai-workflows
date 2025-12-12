@@ -11,6 +11,7 @@ import {
 } from "@/app/lib/mux";
 import type { MuxAsset } from "@/app/lib/mux";
 
+import { Level1SummaryAndTags } from "./level-1-summary";
 import { MediaPlayerWithTranscript } from "./media-player-with-transcript";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,15 +281,17 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
           </div>
 
           {/* Level Sections: Two-column on desktop */}
-          <div className="grid gap-8 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="grid items-start gap-8 lg:grid-cols-2 xl:grid-cols-3">
             {/* Level 1: Sync Call */}
             <LevelSection
               level={1}
               title="Generate Summary & Tags"
               badge="SYNC CALL"
               badgeClass="badge-sync"
-              description="Direct function call → instant result. Extract a title, description, and keywords from the video's storyboard and transcript."
-            />
+              description="Simply call @mux/ai directly from server-side code with minimal workflow infrastructure. Extracts title, summary, and tags from storyboard and transcript."
+            >
+              <Level1SummaryAndTags assetId={asset.id} />
+            </LevelSection>
 
             {/* Level 2: Basic Async Workflows */}
             <LevelSection
@@ -296,7 +299,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
               title="Translate Captions & Audio"
               badge="ASYNC WORKFLOW"
               badgeClass="badge-async"
-              description="Single primitive in Vercel Workflow → status + result. Add translated captions or dubbed audio tracks."
+              description="Invoke @mux/ai primitives and workflows within a Vercel Workflow to add translated captions or dubbed audio tracks."
             />
 
             {/* Level 3: Custom Workflow */}
@@ -305,7 +308,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
               title="Create Social Clip"
               badge="CUSTOM WORKFLOW"
               badgeClass="badge-custom"
-              description="Multi-step orchestration with Remotion → complex pipeline. Create shareable clips with translated captions and dubbed audio."
+              description="Compose multiple @mux/ai primitives and workflows with external tools like Remotion to build complex video processing pipelines. Create shareable clips with translated captions and dubbed audio."
             />
           </div>
         </div>
