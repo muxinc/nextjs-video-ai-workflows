@@ -21,7 +21,7 @@ export function Footer({ variant = "minimal" }: FooterProps) {
           <div className="flex flex-wrap items-center justify-center gap-8">
             {/* Mux Logo */}
             <a
-              href="https://github.com/muxinc/ai"
+              href="https://www.mux.com/"
               target="_blank"
               rel="noreferrer"
               aria-label="@mux/ai on GitHub"
@@ -108,4 +108,3 @@ export function Footer({ variant = "minimal" }: FooterProps) {
     </footer>
   );
 }
-

@@ -90,11 +90,25 @@ export default function Home() {
           <p className="max-w-xl text-center text-lg leading-relaxed text-foreground-muted md:text-xl">
             Build video intelligence pipelines with
             {" "}
-            <span className="font-bold text-foreground">@mux/ai</span>
+            <a
+              href="https://github.com/muxinc/ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-foreground underline decoration-accent decoration-2 underline-offset-2 transition-colors hover:text-accent"
+            >
+              @mux/ai
+            </a>
             {" "}
-            and
+            and the
             {" "}
-            <span className="font-bold text-foreground">Vercel Workflows</span>
+            <a
+              href="https://github.com/vercel/workflow"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-foreground underline decoration-accent decoration-2 underline-offset-2 transition-colors hover:text-accent"
+            >
+              Vercel Workflow DevKit
+            </a>
             . Three integration levels, one reference architecture.
           </p>
 
