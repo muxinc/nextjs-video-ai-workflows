@@ -28,6 +28,7 @@ All other `@mux/ai/workflows` usage (e.g. caption translation, audio dubbing, cl
 Implementation notes for this setup follow the Next.js guide from Vercel Workflow: [Next.js getting started](https://useworkflow.dev/docs/getting-started/next).
 
 Practical expectations:
+
 - The `/api/workflows/run` and `/api/clips/create` endpoints **start** workflows rather than performing the full work inline.
 - The app persists workflow runs (`WorkflowRun`) and surfaces them in the UI as progress + final outputs (track IDs, URLs, metadata).
 
@@ -198,6 +199,7 @@ The UI and data model stay the same either way; only the render backend changes.
   - Returns clips with `status`, `renderedUrl`, `posterUrl` so the UI can show progress and final assets
 
 On the `Clip` model, we persist:
+
 - `status` (`queued` → `rendering` → `ready` / `failed`)
 - `renderedUrl`, `posterUrl`
 - The exact composition props used for rendering (as JSON) for auditability and re-renders

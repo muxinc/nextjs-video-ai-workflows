@@ -1,11 +1,13 @@
-import { withWorkflow } from 'workflow/next';
+import path from "node:path";
+
+import { withWorkflow } from "workflow/next";
+
 import type { NextConfig } from "next";
-import path from 'path';
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: path.join(__dirname, '..'),
-  }
-}
+    root: path.join(__dirname, ".."),
+  },
+};
 
 export default withWorkflow(nextConfig);

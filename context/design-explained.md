@@ -26,6 +26,7 @@ The visual reference is a **minimal, high-contrast, slightly brutalist** UI: lot
   - On larger screens, use a two-column layout where it helps comprehension (e.g. detail page: player + actions on left, outputs on right).
 
 Suggested structure:
+
 - Header: logotype/title + small subtitle
 - Primary action row (browse / try workflows)
 - Secondary actions (optional chips, but keep minimal)
@@ -44,6 +45,7 @@ Suggested structure:
   - Regular body copy and labels
 
 Guidance:
+
 - Avoid overly rounded, “friendly” type.
 - Prefer crisp text, neutral tone.
 
@@ -57,6 +59,7 @@ Guidance:
 - **Accent**: a single saturated highlight (e.g. thin green rule) used sparingly for separators or status.
 
 Rules:
+
 - Don’t introduce multiple accent colors.
 - Use color to communicate state, but keep it subtle (most of the UI is monochrome).
 
@@ -81,6 +84,7 @@ This is a key part of the aesthetic: it should feel like layered paper/blocks.
 - Optional one-line helper text below the button, not inside it.
 
 Interactions:
+
 - Hover: slightly increase contrast (or deepen shadow).
 - Focus: unmistakable focus ring (outer outline or accent rule) without changing the core shape.
 
@@ -97,6 +101,7 @@ Interactions:
 - Text is short and direct.
 
 Interactions:
+
 - Hover: invert (black background / white text) **or** add a heavier shadow.
 - Active/selected: filled (black) with reversed text.
 
@@ -107,6 +112,7 @@ Interactions:
 - Keep copy functional and specific (e.g. “Extracting clips (10 remaining)…”).
 
 Rules:
+
 - No full-screen loaders unless absolutely necessary.
 - Prefer inline progress in-context with the action that started it.
 - Always show the “what will happen next” line when possible (e.g. “When ready, captions will appear in the player selector.”).
@@ -129,7 +135,7 @@ Rules:
 
 ## Page-level guidance (mapping to this app)
 
-The goal across pages: **show off the workflows** with a sleek UI. We are intentionally *not* search-first; the primary interaction is “pick a talk → run workflows → see changes applied”.
+The goal across pages: **show off the workflows** with a sleek UI. We are intentionally _not_ search-first; the primary interaction is “pick a talk → run workflows → see changes applied”.
 
 ### Landing (`/`)
 
