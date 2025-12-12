@@ -45,8 +45,13 @@ function getThumbnailUrl(playbackId: string): string {
 }
 
 function getAssetTitle(asset: MuxAsset): string {
-  // TODO: Replace with AI-generated title from Level 1 when available
-  // For now, use passthrough metadata or fallback to a formatted ID
+  // Prefer meta.title if set on the asset
+  const metaTitle = asset.meta?.title;
+  if (metaTitle) {
+    return metaTitle;
+  }
+
+  // Fall back to passthrough metadata
   const passthrough = asset.passthrough;
   if (passthrough) {
     try {
@@ -60,6 +65,7 @@ function getAssetTitle(asset: MuxAsset): string {
       }
     }
   }
+
   return `Talk ${asset.id.slice(0, 8)}`;
 }
 
