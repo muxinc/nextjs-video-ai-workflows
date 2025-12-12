@@ -141,3 +141,85 @@ export function findAudioTrack(
 
   return tracks.find(track => track.language_code === languageCode);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Text Track Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns all ready text tracks from an asset.
+ * Text tracks include subtitles, captions, and other text-based tracks.
+ *
+ * @param asset - The Mux asset
+ * @returns Array of ready text tracks
+ */
+export function getReadyTextTracks(asset: MuxAsset): AssetTrack[] {
+  return (asset.tracks || []).filter(
+    track => track.type === "text" && track.status === "ready",
+  );
+}
+
+/**
+ * Finds a text track for the given language code.
+ *
+ * @param asset - The Mux asset
+ * @param languageCode - Optional ISO 639-1 language code (e.g., "en")
+ * @returns The matching track, or undefined if not found
+ */
+export function findTextTrack(
+  asset: MuxAsset,
+  languageCode?: string,
+): AssetTrack | undefined {
+  const tracks = getReadyTextTracks(asset);
+  if (!tracks.length) {
+    return undefined;
+  }
+
+  if (!languageCode) {
+    return tracks[0];
+  }
+
+  return tracks.find(track => track.language_code === languageCode);
+}
+
+/**
+ * Fetches the transcript content for a text track.
+ * Uses the Mux Playback API to get the plain-text transcript.
+ *
+ * @param playbackId - The playback ID for the asset
+ * @param trackId - The text track ID
+ * @returns The transcript text
+ */
+export async function getTranscript(
+  playbackId: string,
+  trackId: string,
+): Promise<string> {
+  // Fetch transcript via direct URL (plain text without timing)
+  const url = `https://stream.mux.com/${playbackId}/text/${trackId}.txt`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch transcript: ${response.status}`);
+  }
+  return response.text();
+}
+
+/**
+ * Fetches the VTT content for a text track.
+ * VTT files include timing information for each caption cue.
+ *
+ * @param playbackId - The playback ID for the asset
+ * @param trackId - The text track ID
+ * @returns The VTT content as a string
+ */
+export async function getTrackVtt(
+  playbackId: string,
+  trackId: string,
+): Promise<string> {
+  // Fetch VTT via direct URL
+  const url = `https://stream.mux.com/${playbackId}/text/${trackId}.vtt`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch VTT: ${response.status}`);
+  }
+  return response.text();
+}

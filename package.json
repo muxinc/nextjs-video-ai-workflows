@@ -12,6 +12,7 @@
   "dependencies": {
     "@mux/ai": "latest",
     "@mux/mux-node": "^12.8.1",
+    "@mux/mux-player-react": "^3.10.1",
     "next": "16.0.6",
     "react": "19.2.0",
     "react-dom": "19.2.0",

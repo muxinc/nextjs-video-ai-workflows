@@ -548,27 +548,27 @@ This ordering builds the app level-by-level so the teaching progression is alway
   - [x] Any workflow provider creds needed by `translateCaptions` / `translateAudio` (e.g. S3 creds, ElevenLabs) are present server-side only
 - [x] **Create a single Mux client module**
   - [x] Add `app/lib/mux.ts` wrapper that exports the minimal read helpers we need (assets list/retrieve, playback ID extraction, audio track helpers)
-  - [ ] Add storyboard meta/vtt and track vtt/transcript helpers (when needed for Level 1+)
+  - [x] Add text track helpers (`getReadyTextTracks`, `findTextTrack`, `getTranscript`, `getTrackVtt`)
 
 ### 1) Client-side workflow state (localStorage)
 
-- [ ] **Create localStorage helpers** (`app/lib/workflow-state.ts`)
-  - [ ] `getWorkflowProgress(assetId, workflowType, targetLang)` — read current status
-  - [ ] `setWorkflowProgress(assetId, workflowType, targetLang, status)` — update status
-  - [ ] `clearWorkflowProgress(assetId, workflowType, targetLang)` — remove on completion
-  - [ ] `getAllInFlightWorkflows(assetId)` — list all running workflows for an asset
-- [ ] **Define status types consistently**
-  - [ ] `WorkflowStatus`: `"queued" | "running" | "completed" | "failed"`
+- [x] **Create localStorage helpers** (`app/lib/workflow-state.ts`)
+  - [x] `getWorkflowProgress(assetId, workflowType, targetLang)` — read current status
+  - [x] `setWorkflowProgress(assetId, workflowType, targetLang, status)` — update status
+  - [x] `clearWorkflowProgress(assetId, workflowType, targetLang)` — remove on completion
+  - [x] `getAllInFlightWorkflows(assetId)` — list all running workflows for an asset
+- [x] **Define status types consistently**
+  - [x] `WorkflowStatus`: `"queued" | "running" | "completed" | "failed"`
 
 ### 2) Read-only app surfaces (browse + detail)
 
 - [x] **UI: `/media` index**
   - [x] Grid/list of talks fetched directly from Mux API
   - [x] Pagination with 6 items per page
-- [ ] **UI: `/media/[slug]` detail**
-  - [ ] Player using the asset's playback ID
-  - [ ] Track selectors populated from the asset's `tracks` array (including translated tracks)
-  - [ ] Placeholder sections for Level 1, 2, and 3 (even if empty initially)
+- [x] **UI: `/media/[slug]` detail**
+  - [x] Player using the asset's playback ID
+  - [x] Transcript panel with VTT cues side-by-side with player
+  - [x] Placeholder sections for Level 1, 2, and 3 (even if empty initially)
 
 ### 3) Level 1: Sync summarization (`getSummaryAndTags`)
 
