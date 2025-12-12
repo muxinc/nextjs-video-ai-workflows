@@ -6,22 +6,30 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@mux/ai": "latest",
+    "@mux/mux-node": "^12.8.1",
+    "@mux/mux-player-react": "^3.10.1",
     "next": "16.0.6",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "workflow": "^4.0.1-beta.29"
+    "workflow": "^4.0.1-beta.29",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
+    "@antfu/eslint-config": "^6.6.1",
+    "@eslint-react/eslint-plugin": "^2.3.13",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.6",
+    "eslint-plugin-format": "^1.1.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

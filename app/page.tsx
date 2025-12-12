@@ -1,226 +1,182 @@
-'use client';
+import Link from "next/link";
 
-import { useState } from 'react';
+import { Footer } from "@/app/components/footer";
 
-const DEFAULT_ASSET_ID = 'X9F02RxSEEBbC02lXPzAeGgsi4Ypowr9ds';
+function DemuxedLogo() {
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <h1
+        className="text-5xl font-extrabold tracking-[0.3em] md:text-7xl"
+        style={{ fontFamily: "var(--font-syne)" }}
+      >
+        DEMU
+        <span className="inline-block -rotate-12 scale-110">X</span>
+        ED
+      </h1>
+      <p
+        className="text-sm tracking-[0.4em] text-foreground-muted md:text-base"
+        style={{ fontFamily: "var(--font-space-mono)" }}
+      >
+        VIDEO LIBRARY
+      </p>
+    </div>
+  );
+}
+
+function LevelCard({
+  level,
+  badge,
+  badgeClass,
+  title,
+  description,
+  example,
+}: {
+  level: string;
+  badge: string;
+  badgeClass: string;
+  title: string;
+  description: string;
+  example: string;
+}) {
+  return (
+    <div className="card-brutal flex h-full min-w-0 flex-col p-8">
+      {/* Header: Level + Badge stacked - fixed height for alignment */}
+      <div className="mb-8 flex h-[52px] flex-col gap-3">
+        <span
+          className="text-[10px] font-bold tracking-[0.2em] text-foreground-muted"
+          style={{ fontFamily: "var(--font-space-mono)" }}
+        >
+          {level}
+        </span>
+        <span className={`badge ${badgeClass} shrink-0 self-start`}>
+          {badge}
+        </span>
+      </div>
+
+      {/* Title - fixed height for alignment */}
+      <h3 className="mb-5 h-[56px] text-xl font-bold leading-tight">
+        {title}
+      </h3>
+
+      {/* Description - flex-1 pushes footer to bottom */}
+      <p className="mb-8 flex-1 text-sm leading-[1.6] text-foreground-muted">
+        {description}
+      </p>
+
+      {/* Footer: Example - fixed height for alignment */}
+      <div
+        className="flex h-[72px] shrink-0 flex-col border-t-2 border-border pt-5 text-[11px] leading-[1.7] text-foreground-muted"
+        style={{ fontFamily: "var(--font-space-mono)" }}
+      >
+        <span className="mb-1 font-bold text-foreground">Example:</span>
+        <code className="block break-words text-foreground-muted">
+          {example}
+        </code>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
-  const [assetId, setAssetId] = useState(DEFAULT_ASSET_ID);
-  const [loading, setLoading] = useState(false);
-  const [activeOperation, setActiveOperation] = useState<'sync' | 'async' | null>(null);
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [workflowInfo, setWorkflowInfo] = useState<{
-    runId: string;
-    status: string;
-    workflowName?: string;
-    createdAt?: string;
-    startedAt?: string;
-  } | null>(null);
-
-  const handleSyncSummarize = async () => {
-    setLoading(true);
-    setActiveOperation('sync');
-    setError(null);
-    setResult(null);
-    setWorkflowInfo(null);
-
-    try {
-      const response = await fetch('/api/summarize-sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ assetId }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch summary');
-      }
-
-      const data = await response.json();
-      setResult(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-      setActiveOperation(null);
-    }
-  };
-
-  const pollRunStatus = async (runId: string, onStatusUpdate: (info: any) => void) => {
-    const maxAttempts = 60;
-    let attempts = 0;
-
-    while (attempts < maxAttempts) {
-      const response = await fetch(`/api/runs/${runId}`);
-      const data = await response.json();
-
-      // Update workflow info with current status
-      onStatusUpdate({
-        runId: data.runId,
-        status: data.status,
-        workflowName: data.workflowName,
-        createdAt: data.createdAt,
-        startedAt: data.startedAt,
-      });
-
-      if (data.status === 'completed') {
-        return data.result;
-      }
-
-      if (data.status === 'failed') {
-        throw new Error('Workflow failed');
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      attempts++;
-    }
-
-    throw new Error('Workflow timed out');
-  };
-
-  const handleAsyncSummarize = async () => {
-    setLoading(true);
-    setActiveOperation('async');
-    setError(null);
-    setResult(null);
-    setWorkflowInfo(null);
-
-    try {
-      const response = await fetch('/api/summarize-async', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ assetId }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to start workflow');
-      }
-
-      const { runId } = await response.json();
-
-      // Set initial workflow info with runId
-      setWorkflowInfo({
-        runId,
-        status: 'pending',
-      });
-
-      const workflowResult = await pollRunStatus(runId, setWorkflowInfo);
-      setResult(workflowResult);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-      setActiveOperation(null);
-    }
-  };
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black p-8">
-      <main className="w-full max-w-2xl space-y-6 bg-white dark:bg-zinc-900 p-8 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-          Mux Asset Summarizer
-        </h1>
+    <div className="flex min-h-screen flex-col">
+      {/* Hero Section */}
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-16 md:py-24">
+        <div className="flex w-full max-w-4xl flex-col items-center gap-12">
+          {/* Logo */}
+          <DemuxedLogo />
 
-        <div className="space-y-4">
-          <div>
-            <label
-              htmlFor="assetId"
-              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+          {/* Value Statement */}
+          <p className="max-w-xl text-center text-lg leading-relaxed text-foreground-muted md:text-xl">
+            Build video intelligence pipelines with
+            {" "}
+            <a
+              href="https://github.com/muxinc/ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-foreground underline decoration-accent decoration-2 underline-offset-2 transition-colors hover:text-accent"
             >
-              Mux Asset ID
-            </label>
-            <input
-              id="assetId"
-              type="text"
-              value={assetId}
-              onChange={(e) => setAssetId(e.target.value)}
-              className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter Mux Asset ID"
-            />
-          </div>
+              @mux/ai
+            </a>
+            {" "}
+            and the
+            {" "}
+            <a
+              href="https://github.com/vercel/workflow"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-foreground underline decoration-accent decoration-2 underline-offset-2 transition-colors hover:text-accent"
+            >
+              Vercel Workflow DevKit
+            </a>
+            . Three integration levels, one reference architecture.
+          </p>
 
-          <div className="flex gap-4">
-            <button
-              onClick={handleSyncSummarize}
-              disabled={loading || !assetId}
-              className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-400 text-white font-medium rounded-lg transition-colors"
-            >
-              {activeOperation === 'sync' ? 'Processing...' : 'Get summary & tags (regular)'}
-            </button>
+          {/* Primary CTA with cursor overlay */}
+          <Link href="/media" className="btn-primary group relative">
+            Browse talks
+          </Link>
 
-            <button
-              onClick={handleAsyncSummarize}
-              disabled={loading || !assetId}
-              className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-zinc-400 text-white font-medium rounded-lg transition-colors"
+          {/* Three Level Cards */}
+          <section className="mt-8 w-full">
+            <h2
+              className="mb-6 text-center text-xs font-bold tracking-[0.3em] text-foreground-muted"
+              style={{ fontFamily: "var(--font-space-mono)" }}
             >
-              {activeOperation === 'async' ? 'Processing...' : 'Get summary & tags (workflow)'}
-            </button>
+              THREE INTEGRATION LEVELS
+            </h2>
+            <div className="grid grid-rows-1 gap-6 md:grid-cols-3">
+              <LevelCard
+                level="LEVEL 1"
+                badge="SYNC CALL"
+                badgeClass="badge-sync"
+                title="Direct Function Calls"
+                description="Simply call @mux/ai primitives and workflows directly from server-side code with zero workflow infrastructure."
+                example="getSummaryAndTags()"
+              />
+              <LevelCard
+                level="LEVEL 2"
+                badge="ASYNC WORKFLOW"
+                badgeClass="badge-async"
+                title="Leverage Async Workflows"
+                description="Invoke @mux/ai primitives and workflows within a Vercel Workflow for reliability and automatic retry semantics with progress tracking."
+                example="translateCaptions / translateAudio"
+              />
+              <LevelCard
+                level="LEVEL 3"
+                badge="CUSTOM WORKFLOW"
+                badgeClass="badge-custom"
+                title="Multi-Step Orchestration"
+                description="Compose multiple @mux/ai primitives and workflows with external tools like Remotion to build complex video processing pipelines."
+                example="Automated social clip pipeline"
+              />
+            </div>
+          </section>
+
+          {/* User Journey Flow */}
+          <div
+            className="mt-6 flex flex-col items-center gap-2 text-xs text-foreground-muted md:flex-row md:gap-3"
+            style={{ fontFamily: "var(--font-space-mono)" }}
+          >
+            <span>Pick a talk</span>
+            {/* Arrow: down on mobile, right on desktop */}
+            <svg className="h-4 w-4 rotate-90 md:rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span>see Level 1 results</span>
+            <svg className="h-4 w-4 rotate-90 md:rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span>trigger Level 2 workflows</span>
+            <svg className="h-4 w-4 rotate-90 md:rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span>build Level 3 pipelines</span>
           </div>
         </div>
-
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        )}
-
-        {workflowInfo && (
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
-              Workflow Status
-            </h3>
-            <div className="space-y-1 text-sm">
-              <div className="flex gap-2">
-                <span className="font-medium text-blue-800 dark:text-blue-200">Run ID:</span>
-                <span className="text-blue-700 dark:text-blue-300 font-mono">{workflowInfo.runId}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="font-medium text-blue-800 dark:text-blue-200">Status:</span>
-                <span className="text-blue-700 dark:text-blue-300 capitalize">{workflowInfo.status}</span>
-              </div>
-              {workflowInfo.workflowName && (
-                <div className="flex gap-2">
-                  <span className="font-medium text-blue-800 dark:text-blue-200">Workflow:</span>
-                  <span className="text-blue-700 dark:text-blue-300">{workflowInfo.workflowName}</span>
-                </div>
-              )}
-              {workflowInfo.createdAt && (
-                <div className="flex gap-2">
-                  <span className="font-medium text-blue-800 dark:text-blue-200">Created:</span>
-                  <span className="text-blue-700 dark:text-blue-300">{new Date(workflowInfo.createdAt).toLocaleString()}</span>
-                </div>
-              )}
-              {workflowInfo.startedAt && (
-                <div className="flex gap-2">
-                  <span className="font-medium text-blue-800 dark:text-blue-200">Started:</span>
-                  <span className="text-blue-700 dark:text-blue-300">{new Date(workflowInfo.startedAt).toLocaleString()}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="p-4 bg-red-100 dark:bg-red-900/20 border border-red-400 dark:border-red-800 rounded-lg">
-            <p className="text-red-800 dark:text-red-200">{error}</p>
-          </div>
-        )}
-
-        {result && !loading && (
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-              Results
-            </h2>
-            <pre className="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-x-auto text-sm text-zinc-900 dark:text-zinc-100">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          </div>
-        )}
       </main>
+
+      <Footer variant="full" />
     </div>
   );
 }
