@@ -280,6 +280,33 @@ This framing communicates the key insight: `@mux/ai` isn't just AI responses—i
 
 ---
 
+## Persistence approach (zero-database)
+
+This demo intentionally avoids a database layer to keep the architecture simple and focused on the `@mux/ai` + Vercel Workflow integration patterns.
+
+### What gets persisted where
+
+| Data                          | Where                | Why                                                                      |
+| ----------------------------- | -------------------- | ------------------------------------------------------------------------ |
+| **Translated caption tracks** | Mux asset            | `translateCaptions` with `uploadToMux: true` attaches the track directly |
+| **Dubbed audio tracks**       | Mux asset            | `translateAudio` with `uploadToMux: true` attaches the track directly    |
+| **Rendered clips**            | S3 storage           | Level 3 workflow uploads MP4 + poster to configured S3 bucket            |
+| **Workflow progress**         | Browser localStorage | Client tracks in-flight workflows for UI status display                  |
+
+### Why this works
+
+- **Mux is the source of truth**: The asset's `tracks` array already contains all the information needed to populate caption/audio selectors in the player.
+- **No sync issues**: Since tracks are attached to the asset, there's no risk of our database getting out of sync with Mux.
+- **localStorage is sufficient for progress**: Workflow status only needs to survive page refreshes within a single browser session. Cross-device sync isn't needed for a demo.
+
+### Tradeoffs
+
+- Workflow progress is browser-local (won't sync across devices/tabs)
+- No server-side audit log of workflow runs
+- Acceptable for a demo; production apps would add persistence as needed
+
+---
+
 ## Implementation notes
 
 The Next.js routes/actions/data-model outline for this app lives in `context/implementation-explained.md`.
@@ -293,12 +320,13 @@ Seed the staging account with a small curated set:
 - 6–12 Demuxed talks spanning:
   - clean speaker-on-stage content
   - talks with slides (good for storyboard + summary)
+  - all with ready English caption tracks (required for translation workflows)
 
 For each integration level:
 
-- **Level 1**: Pre-run `getSummaryAndTags` on all talks so the index shows AI titles/tags immediately
-- **Level 2**: Pre-generate 1–2 translated caption tracks and 1 dubbed audio track on select talks
-- **Level 3**: Pre-render 2–3 clips (9:16) so the "Clips" section looks alive on first load
+- **Level 1**: No pre-seeding needed — `getSummaryAndTags` runs synchronously on demand
+- **Level 2**: Pre-generate 1–2 translated caption tracks and 1 dubbed audio track on select talks (so the player track selectors show language options on first load)
+- **Level 3**: Optionally pre-render 1–2 clips so the custom workflow result is visible immediately
 
 ---
 

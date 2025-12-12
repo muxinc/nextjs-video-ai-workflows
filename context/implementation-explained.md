@@ -474,26 +474,61 @@ On the `Clip` model, we persist:
 
 ### Server actions / API routes
 
-- `POST /api/workflows/run`
-  - body: `{ assetId, workflow, params }`
-  - runs selected workflow(s)
-  - persists result
-- `GET /api/media`
-- `GET /api/media/[id]`
+- `POST /api/workflows/translate-captions`
+  - body: `{ assetId, sourceLang, targetLang }`
+  - starts caption translation workflow
+  - returns: `{ workflowRunId }`
+- `POST /api/workflows/translate-audio`
+  - body: `{ assetId, targetLang }`
+  - starts audio dubbing workflow
+  - returns: `{ workflowRunId }`
+- `GET /api/workflows/[runId]/status`
+  - returns current workflow status for polling
 - `POST /api/clips/create`
   - body: `{ assetId, startTime, endTime, sourceLang, targetLangs, preset }`
-  - orchestrates: translateCaptions + translateAudio + Remotion render
-- `GET /api/media/[id]/clips`
+  - starts multi-step clip creation workflow
+  - returns: `{ workflowRunId }`
 
-### Data model (minimal)
+### Data model (zero-database approach)
 
-- `Media`:
-  - `id`, `slug`, `title`, `muxAssetId`, `muxPlaybackId`, `type`, `sourceMeta`
-- `WorkflowRun`:
-  - `mediaId`, `workflow`, `status`, `startedAt`, `completedAt`, `resultJson`, `providerMeta`
-- `Clip`:
-  - `mediaId`, `startTime`, `endTime`, `status`, `renderedUrl`, `posterUrl`
-  - `captionTrackIdsByLang`, `audioTrackIdsByLang` (so the UI can switch variants)
+This app intentionally avoids a database layer. All persistence happens in two places:
+
+1. **Mux assets** — The source of truth for media and tracks
+   - Translated caption tracks are attached directly to the Mux asset
+   - Dubbed audio tracks are attached directly to the Mux asset
+   - The asset's `tracks` array reflects all available language variants
+
+2. **Browser localStorage** — Client-side state for workflow progress
+   - Tracks in-flight workflow runs (workflow ID, status, started timestamp)
+   - Persists across page refreshes so users can see progress
+   - Cleared when workflows complete or fail
+
+This approach means:
+
+- No database setup or migrations
+- Mux is the single source of truth for all media state
+- Workflow progress is ephemeral but survives page refreshes
+- Multiple browser tabs/devices won't share workflow state (acceptable for a demo)
+
+#### localStorage schema
+
+```typescript
+// Key: `workflow:${assetId}:${workflowType}:${targetLang}`
+// Example: `workflow:abc123:translateCaptions:es`
+interface WorkflowProgress {
+  workflowRunId: string;
+  status: "queued" | "running" | "completed" | "failed";
+  startedAt: string; // ISO timestamp
+  completedAt?: string;
+  error?: string;
+}
+```
+
+#### Why this works
+
+- **Level 1 (sync)**: No persistence needed — results render immediately
+- **Level 2 (async)**: localStorage tracks progress; Mux asset stores the result (new track)
+- **Level 3 (custom)**: localStorage tracks multi-step progress; final artifacts stored in S3/Mux
 
 ---
 
@@ -515,49 +550,49 @@ This ordering builds the app level-by-level so the teaching progression is alway
   - [x] Add `app/lib/mux.ts` wrapper that exports the minimal read helpers we need (assets list/retrieve, playback ID extraction, audio track helpers)
   - [ ] Add storyboard meta/vtt and track vtt/transcript helpers (when needed for Level 1+)
 
-### 1) Data persistence (minimal, but real)
+### 1) Client-side workflow state (localStorage)
 
-- [ ] **Pick persistence mechanism (and implement it)**
-  - [ ] `Media`, `WorkflowRun`, `Clip` tables/collections with fields described above
-  - [ ] Simple "upsert" helpers: `upsertMediaFromMuxAsset`, `saveWorkflowRun`, `createClip`, `updateClipStatus`
-- [ ] **Define status enums consistently**
-  - [ ] `WorkflowRun.status`: `queued | running | completed | failed`
-  - [ ] `Clip.status`: `queued | translating | dubbing | rendering | ready | failed`
+- [ ] **Create localStorage helpers** (`app/lib/workflow-state.ts`)
+  - [ ] `getWorkflowProgress(assetId, workflowType, targetLang)` — read current status
+  - [ ] `setWorkflowProgress(assetId, workflowType, targetLang, status)` — update status
+  - [ ] `clearWorkflowProgress(assetId, workflowType, targetLang)` — remove on completion
+  - [ ] `getAllInFlightWorkflows(assetId)` — list all running workflows for an asset
+- [ ] **Define status types consistently**
+  - [ ] `WorkflowStatus`: `"queued" | "running" | "completed" | "failed"`
 
 ### 2) Read-only app surfaces (browse + detail)
 
-- [ ] **`GET /api/media`**
-  - [ ] Returns a list of `Media` (hydrated from persisted records, with a refresh path from Mux as needed)
-- [ ] **`GET /api/media/[id]`**
-  - [ ] Returns one `Media` + any persisted `WorkflowRun` outputs needed for the page
-- [ ] **UI: `/media` index**
-  - [ ] Grid/list of talks populated from `GET /api/media`
+- [x] **UI: `/media` index**
+  - [x] Grid/list of talks fetched directly from Mux API
+  - [x] Pagination with 6 items per page
 - [ ] **UI: `/media/[slug]` detail**
-  - [ ] Player using the `muxPlaybackId`
+  - [ ] Player using the asset's playback ID
+  - [ ] Track selectors populated from the asset's `tracks` array (including translated tracks)
   - [ ] Placeholder sections for Level 1, 2, and 3 (even if empty initially)
 
 ### 3) Level 1: Sync summarization (`getSummaryAndTags`)
 
 - [ ] **Implement "Generate summary" path**
   - [ ] Server action calls `getSummaryAndTags(assetId, options)` synchronously
-  - [ ] Persist result onto `Media` (and optionally a `WorkflowRun` record for auditability)
-- [ ] **Detail page rehydrates summary + tags**
+  - [ ] Results rendered directly in the response (no persistence needed)
+- [ ] **Detail page displays summary + tags**
   - [ ] Generated title/description block
-  - [ ] Tag chips (used on index once available)
+  - [ ] Tag chips
   - [ ] Clear "Level 1: Sync call" label in UI
-- [ ] **Optional: cache storyboard/transcript artifacts**
-  - [ ] Persist storyboard JSON/VTT and transcript excerpt for the "How it was made" disclosure
+- [ ] **Optional: show inputs used**
+  - [ ] Display storyboard preview and transcript excerpt in a "How it was made" disclosure
 
 ### 4) Level 2: Basic async workflows (Vercel Workflow infra)
 
 - [ ] **Wire Vercel Workflow in Next.js**
   - [ ] Ensure workflow entrypoints exist under `workflows/*` using `"use workflow"`
   - [ ] Ensure side-effect steps live in `"use step"` functions
-- [ ] **`POST /api/workflows/run`**
-  - [ ] Starts a workflow run (returns run id + initial status)
-  - [ ] Persists `WorkflowRun` as `queued` and updates as it progresses
+- [ ] **`POST /api/workflows/translate-captions`** and **`POST /api/workflows/translate-audio`**
+  - [ ] Starts a workflow run (returns workflow run ID)
+  - [ ] Client stores run ID + status in localStorage
 - [ ] **UI status callouts**
   - [ ] For each action button: show `Queued / Running / Ready / Failed` inline
+  - [ ] Poll workflow status and update localStorage
   - [ ] Clear "Level 2: Async workflow" label in UI
 
 ### 5) Level 2: Caption translation + audio dubbing
@@ -565,12 +600,12 @@ This ordering builds the app level-by-level so the teaching progression is alway
 - [ ] **Caption translation flow**
   - [ ] Identify the canonical source text track for an asset (the "ready" English captions)
   - [ ] `translateCaptionsWorkflow` wraps `translateCaptions` in a Vercel Workflow
-  - [ ] Persist returned track IDs into `Media`
-  - [ ] Rehydrate into the player caption selector
+  - [ ] Workflow attaches translated track directly to the Mux asset (`uploadToMux: true`)
+  - [ ] Refresh asset data to see new track in player selector
 - [ ] **Audio dubbing flow**
   - [ ] `translateAudioWorkflow` wraps `translateAudio` in a Vercel Workflow
-  - [ ] Persist returned audio track IDs
-  - [ ] Rehydrate into the player audio selector
+  - [ ] Workflow attaches dubbed audio track directly to the Mux asset
+  - [ ] Refresh asset data to see new track in player selector
 
 ### 6) Level 3: Clip creation UI (Remotion preview — "free" iteration)
 
@@ -583,34 +618,27 @@ This ordering builds the app level-by-level so the teaching progression is alway
 - [ ] **Define composition props contract**
   - [ ] `playbackId`, timing, caption source (VTT/track), optional dubbed audio override, branding preset
   - [ ] Same props power both preview (client) and render (server)
-  - [ ] Persist the exact props JSON on the `Clip` record (for re-render/audit)
 
 ### 7) Level 3: Custom workflow (full orchestration)
 
 - [ ] **`POST /api/clips/create`**
-  - [ ] Creates `Clip` record as `queued`
   - [ ] Starts `createClipWorkflow` which orchestrates:
-    - Step 1: `translateCaptions` for each target language
-    - Step 2: `translateAudio` for each target language
+    - Step 1: `translateCaptions` for each target language (if needed)
+    - Step 2: `translateAudio` for each target language (if needed)
     - Step 3: Remotion render
-    - Step 4: Upload to storage
-    - Step 5: Finalize `Clip` record
-- [ ] **`GET /api/media/[id]/clips`**
-  - [ ] Returns clip list with per-step status + artifact URLs
+    - Step 4: Upload to S3 storage
+  - [ ] Returns workflow run ID; client tracks progress in localStorage
 - [ ] **UI: clip status**
-  - [ ] Shows which step is running: "Translating captions..." → "Dubbing audio..." → "Rendering..." → "Ready"
-  - [ ] Shows poster + download link when ready
+  - [ ] Shows which step is running: "Translating captions..." → "Dubbing audio..." → "Rendering..." → "Uploading..."
+  - [ ] Poll workflow status and update localStorage
+  - [ ] Shows poster + download link when ready (URLs returned from workflow)
 
 ### 8) Polish & showcase readiness
 
-- [ ] **Index page uses AI-enriched metadata**
-  - [ ] Use generated title/tags when present; graceful fallback otherwise
 - [ ] **Three-level framing is explicit in UI**
   - [ ] Level 1: Sync call (summary/tags)
   - [ ] Level 2: Basic workflow (captions, dubbing)
   - [ ] Level 3: Custom workflow (rendered clips)
 - [ ] **Seed content strategy**
-  - [ ] Ensure staging account has 6–12 talks and at least one good baseline caption track
-  - [ ] Pre-run Level 1 on all talks for instant index
-  - [ ] Pre-run Level 2 on select talks (1–2 translated captions, 1 dubbed audio)
-  - [ ] Pre-run Level 3 on 2–3 clips for instant "wow"
+  - [ ] Ensure staging Mux account has 6–12 talks with ready English caption tracks
+  - [ ] Pre-run Level 2 on select talks (1–2 translated captions, 1 dubbed audio) so tracks exist on first load

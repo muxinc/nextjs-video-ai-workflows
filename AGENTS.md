@@ -269,39 +269,35 @@ From `context/design-explained.md`:
 
 ---
 
-## Data model
+## Data model (zero-database approach)
+
+This app intentionally avoids a database. All state lives in two places:
+
+### 1. Mux assets (source of truth)
+
+Translated caption and audio tracks are attached directly to Mux assets using the `uploadToMux: true` option. The asset's `tracks` array reflects all available language variants. No separate persistence layer needed.
+
+### 2. Browser localStorage (workflow progress)
+
+Client-side state tracks in-flight workflows:
 
 ```typescript
-// Media — a Mux asset with optional AI-generated metadata
-interface Media {
-  id: string;
-  slug: string;
-  title: string;
-  muxAssetId: string;
-  muxPlaybackId: string;
-  summary?: { title: string; description: string; tags: string[] };
-}
-
-// WorkflowRun — tracks async workflow execution
-interface WorkflowRun {
-  id: string;
-  mediaId: string;
-  workflow: "translateCaptions" | "translateAudio" | "createClip";
+// Key: `workflow:${assetId}:${workflowType}:${targetLang}`
+interface WorkflowProgress {
+  workflowRunId: string;
   status: "queued" | "running" | "completed" | "failed";
-  resultJson?: object;
-}
-
-// Clip — a rendered social clip
-interface Clip {
-  id: string;
-  mediaId: string;
-  startTime: number;
-  endTime: number;
-  status: "queued" | "translating" | "dubbing" | "rendering" | "ready" | "failed";
-  renderedUrl?: string;
-  posterUrl?: string;
+  startedAt: string; // ISO timestamp
+  completedAt?: string;
+  error?: string;
 }
 ```
+
+This means:
+
+- No database setup or migrations required
+- Mux is the single source of truth for all media and track state
+- Workflow progress survives page refreshes but is browser-local
+- Multiple browser tabs/devices won't share workflow state (acceptable for a demo)
 
 ---
 
