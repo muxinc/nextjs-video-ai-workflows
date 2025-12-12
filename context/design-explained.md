@@ -1,8 +1,22 @@
 # Design explained
 
-This document describes the intended look-and-feel of the “Demuxed Library” app.
+This document describes the intended look-and-feel of the "Demuxed Library" app.
 
 The visual reference is a **minimal, high-contrast, slightly brutalist** UI: lots of whitespace, thick black rules, sharp corners, and simple blocks that feel fast and honest.
+
+---
+
+## The teaching goal
+
+This app teaches developers how to integrate `@mux/ai` with Vercel Workflows. The UI must make the **three integration levels** obvious:
+
+| Level | Pattern              | Visual treatment                     |
+| ----- | -------------------- | ------------------------------------ |
+| **1** | Sync call            | Instant result, simple output block  |
+| **2** | Basic async workflow | Status callout + result when ready   |
+| **3** | Custom workflow      | Multi-step progress + final artifact |
+
+Every page should visually distinguish which level the user is interacting with.
 
 ---
 
@@ -10,8 +24,8 @@ The visual reference is a **minimal, high-contrast, slightly brutalist** UI: lot
 
 - **Editorial + utilitarian**: it should feel like a small, opinionated media library—not a dashboard.
 - **Calm canvas, loud controls**: the background stays soft and neutral; interactive elements are bold and clearly outlined.
-- **Deliberate restraint**: few colors, minimal decoration, and only one “primary” action per surface.
-- **Show the value fast**: every page should make it obvious what `@mux/ai` adds (summary, captions, dubbing, clip creation) without visual clutter.
+- **Deliberate restraint**: few colors, minimal decoration, and only one "primary" action per surface.
+- **Show the levels clearly**: every page should make it obvious which integration pattern is being demonstrated (sync, basic async, or custom workflow).
 
 ---
 
@@ -77,10 +91,30 @@ This is a key part of the aesthetic: it should feel like layered paper/blocks.
 
 ## Core components
 
+### Level indicator
+
+A small badge or label that identifies which integration level a section represents. This is crucial for the teaching goal.
+
+- **Level 1**: "SYNC CALL" — understated, possibly a small pill badge
+- **Level 2**: "ASYNC WORKFLOW" — same style, different label
+- **Level 3**: "CUSTOM WORKFLOW" — same style, different label
+
+Placement:
+
+- At the top of each section on the detail page
+- At the top of the clip creation page
+- Optional: in card footers on the index page (if the card shows Level 1 output)
+
+Visual treatment:
+
+- Small all-caps text
+- Subtle border or background tint
+- Consistent across the app so users learn the pattern
+
 ### Primary CTA button (hero)
 
 - Large button with **thick black border** (or solid black fill with white text).
-- Single short label (e.g. “Browse talks”, “Generate summary”, “Add Spanish captions”).
+- Single short label (e.g. "Browse talks", "Generate summary", "Add Spanish captions").
 - Optional one-line helper text below the button, not inside it.
 
 Interactions:
@@ -88,11 +122,12 @@ Interactions:
 - Hover: slightly increase contrast (or deepen shadow).
 - Focus: unmistakable focus ring (outer outline or accent rule) without changing the core shape.
 
-### Workflow action row
+### Workflow action row (Level 2)
 
 - A small set (2–4) of clearly-labeled, single-purpose buttons.
-- Prefer verbs + target: “Generate summary”, “Add captions”, “Dub audio”, “Create clip”.
-- When an action is unavailable (missing track, not ready), show a short reason and the next step (“No captions found → generate captions first” / “Asset processing → try again soon”).
+- Prefer verbs + target: "Add Spanish captions", "Dub to French".
+- Each button is a trigger for a **single-primitive** Vercel Workflow.
+- When an action is unavailable (missing track, not ready), show a short reason and the next step ("No captions found → generate captions first" / "Asset processing → try again soon").
 
 ### Suggestion chips
 
@@ -107,15 +142,28 @@ Interactions:
 
 ### Status / progress callouts (async work)
 
-- A bordered, white panel that reads like a “system message”.
+Different treatment for Level 2 vs Level 3:
+
+**Level 2 (single-step status)**:
+
+- A bordered, white panel that reads like a "system message".
 - Left-aligned spinner + short status string.
-- Keep copy functional and specific (e.g. “Extracting clips (10 remaining)…”).
+- Simple states: Queued → Running → Ready / Failed
+- Keep copy functional: "Translating captions to Spanish…"
+
+**Level 3 (multi-step status)**:
+
+- A bordered panel showing the **pipeline** of steps.
+- Each step has its own status indicator (pending, running, complete, failed).
+- Current step is highlighted; completed steps show checkmarks.
+- Example: "✓ Translating captions → ✓ Dubbing audio → ● Rendering video → ○ Uploading"
 
 Rules:
 
 - No full-screen loaders unless absolutely necessary.
 - Prefer inline progress in-context with the action that started it.
-- Always show the “what will happen next” line when possible (e.g. “When ready, captions will appear in the player selector.”).
+- Always show the "what will happen next" line when possible (e.g. "When ready, captions will appear in the player selector.").
+- For Level 3, make the multi-step nature visible—this is a key teaching moment.
 
 ### Disclosure panel (“How it was made”)
 
@@ -125,86 +173,102 @@ Rules:
   - transcript preview snippet (from VTT / transcript)
   - small labels: “Inputs used”, “Generated output”
 
-### Footer band (“Built with”)
+### Footer band ("Built with")
 
 - Dark band across the bottom with subdued text.
 - A thin accent rule at the top edge.
-- Simple “Built with” line + logos.
+- "Built with" line showing the key technologies:
+  - **@mux/ai** — video intelligence primitives
+  - **Vercel Workflows** — async orchestration
+  - **Remotion** — video rendering (Level 3 only)
+  - **Mux Video** — underlying asset hosting + playback
 
 ---
 
 ## Page-level guidance (mapping to this app)
 
-The goal across pages: **show off the workflows** with a sleek UI. We are intentionally _not_ search-first; the primary interaction is “pick a talk → run workflows → see changes applied”.
+The goal across pages: **teach the three integration levels** with a sleek UI. The primary interaction is "pick a talk → see Level 1 results → trigger Level 2 workflows → build Level 3 pipelines."
 
 ### Landing (`/`)
 
 - **Layout**:
-  - Centered wordmark + one-sentence value statement.
-  - One hero CTA: **“Browse talks”**.
-  - Optional small “What you can do” strip with 3 bullets (Summary, Captions, Dubbing/Clips).
+  - Centered wordmark + one-sentence value statement about `@mux/ai` + Vercel Workflows.
+  - One hero CTA: **"Browse talks"**.
+  - **Three-level preview strip**: show what each level does (sync call, basic workflow, custom workflow).
 - **Content**:
   - Avoid long marketing blocks; keep it to 1–2 short paragraphs max.
+  - Make it clear this is a **reference architecture**, not just a demo.
 - **Responsiveness**:
   - Single column always; CTA stays above the fold.
 
 ### Talks index (`/media`)
 
-- **Primary goal**: pick a talk quickly; preview what AI adds without extra clicks.
+- **Primary goal**: pick a talk quickly; preview what Level 1 (sync summarization) adds.
 - **Layout**:
-  - Page title + short instruction (“Pick a talk to see summary, captions, dubbing, and clip creation.”).
+  - Page title + short instruction ("Pick a talk to explore sync calls, async workflows, and custom pipelines.").
   - Grid of talk cards (2-up mobile, 3–4-up desktop).
 - **Talk card**:
   - Thumbnail (or poster), title, speaker/year (small).
-  - Optional: 3–5 AI tags (if already generated) else a subtle “Generate summary” badge on detail page only (avoid too many CTAs on the index).
+  - **AI summary title + tags** (if already generated via Level 1) — else fallback to original title.
   - One obvious action: click card → detail page.
-- **Don’t add**:
+- **Don't add**:
   - Search bars, filters, or heavy metadata tables (keep it sleek).
 
 ### Media detail (`/media/[slug]`)
 
-- **Primary goal**: show “applied vs generated” value on a real asset.
+- **Primary goal**: show all three integration levels on a single asset, clearly labeled.
 - **Layout (mobile)**:
   - Player
-  - Workflow actions
-  - Outputs (Summary, Tags, Tracks)
-  - “How it was made” disclosure (collapsed by default)
+  - Level 1 section (Sync)
+  - Level 2 section (Basic workflows)
+  - Level 3 section (Custom workflow CTA)
+  - "How it was made" disclosure (collapsed by default)
 - **Layout (desktop)**:
   - Two columns:
-    - Left: player + workflow actions
-    - Right: generated outputs + applied tracks
-- **Workflow actions (keep to a small set)**:
-  - Generate summary
-  - Add captions (choose language(s))
-  - Dub audio (choose language(s))
-  - Create clip
-- **Outputs**:
-  - **Generated summary**: title + description block, tag chips below.
-  - **Applied tracks**: a simple list showing available caption/audio tracks; the player’s selectors reflect these.
-  - **Transcript preview**: show a short snippet (from VTT/transcript) with a “View full transcript” affordance (collapsible/scrollable panel).
-  - **Storyboard disclosure**: collapsed panel that shows a storyboard preview and labels it as an input used under the hood (with transcript when available).
+    - Left: player + workflow actions by level
+    - Right: outputs organized by level
+- **Level 1 section**: "Sync call"
+  - **Generate summary** button (or show result if already generated)
+  - Output: title + description block, tag chips
+  - Small label: "Direct function call → instant result"
+- **Level 2 section**: "Basic async workflows"
+  - **Add Spanish captions** / **Add French captions** buttons
+  - **Dub to Spanish** / **Dub to French** buttons
+  - Status callouts inline: Queued → Running → Ready
+  - Small label: "Single primitive in Vercel Workflow → status + result"
+- **Level 3 section**: "Custom workflow"
+  - **Create social clip** CTA → navigates to clip creation page
+  - Preview of what the custom workflow produces
+  - Small label: "Multi-step orchestration with Remotion → complex pipeline"
+- **Applied tracks** (in player):
+  - Caption selector: Original + translated captions (Level 2 outputs)
+  - Audio selector: Original + dubbed tracks (Level 2 outputs)
 - **State handling**:
-  - For each action, show one status callout directly beneath the button while running; avoid global toasts.
+  - For each Level 2 action, show one status callout directly beneath the button while running.
+  - Avoid global toasts; keep status contextual to the action.
 
 ### Clip creation (`/media/[slug]/clips/new`)
 
-- **Primary goal**: create one shareable artifact without feeling like video-editing software.
+- **Primary goal**: demonstrate the Level 3 custom workflow—orchestrating multiple primitives + Remotion.
 - **Layout**:
-  - A “workbench” with two clear panels:
+  - A "workbench" with two clear panels:
     - **Inputs** panel (time range, language options, preset)
     - **Preview / output** panel (preview first; output appears when ready)
+- **Level label**: clearly show this is "Level 3: Custom Workflow" at the top.
 - **Inputs panel (minimal)**:
   - Start/end (or start + duration)
   - Captions: original vs translated language
   - Audio: original vs dubbed language
   - Preset: 9:16 / 1:1 / 16:9 (as 3 chips)
-  - One primary CTA: “Render clip”
+  - One primary CTA: "Render clip"
 - **Preview/output panel**:
-  - Always show an interactive preview when possible.
-  - When rendering is started, replace the render CTA with a status callout and keep the preview visible (don’t blank the screen).
-  - When ready, show: poster + “Download MP4” and “Open clip” actions.
+  - Always show an interactive Remotion preview.
+  - When rendering is started, show **multi-step status**:
+    - "Translating captions..." → "Dubbing audio..." → "Rendering video..." → "Uploading..."
+  - When ready, show: poster + "Download MP4" and "Open clip" actions.
 - **Workflow visibility**:
-  - Keep raw logs hidden; provide a “Details” disclosure that shows what steps ran (captions, dubbing, render).
+  - Show which step is currently running (this is a key teaching moment).
+  - Optional: "Details" disclosure that shows all steps + their status.
 
 ---
 

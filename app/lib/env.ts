@@ -26,10 +26,20 @@ const EnvSchema = z.object({
   MUX_SIGNING_KEY: optionalString("Mux signing key ID for signed playback URLs."),
   MUX_PRIVATE_KEY: optionalString("Mux signing private key for signed playback URLs."),
 
-  // AI provider keys (optional, depends on which provider you use)
+  // AI provider keys (optional, depends on which provider you use but at least one is required)
   OPENAI_API_KEY: optionalString("OpenAI API key for OpenAI-backed workflows."),
   ANTHROPIC_API_KEY: optionalString("Anthropic API key for Claude-backed workflows."),
   GOOGLE_GENERATIVE_AI_API_KEY: optionalString("Google Generative AI API key for Gemini-backed workflows."),
+
+  // ElevenLabs API key (required for translateAudio workflow)
+  ELEVENLABS_API_KEY: requiredString("ElevenLabs API key for translateAudio workflow.", "Required to use ElevenLabs for audio translation."),
+
+  // S3-Compatible Storage (required for translation workflows)
+  S3_ENDPOINT: requiredString("S3 endpoint for translation workflows.", "Required to store translated artifacts."),
+  S3_REGION: requiredString("S3 region for translation workflows.", "Required to store translated artifacts."),
+  S3_BUCKET: requiredString("S3 bucket for translation workflows.", "Required to store translated artifacts."),
+  S3_ACCESS_KEY_ID: requiredString("S3 access key ID for translation workflows.", "Required to store translated artifacts."),
+  S3_SECRET_ACCESS_KEY: requiredString("S3 secret access key for translation workflows.", "Required to store translated artifacts."),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

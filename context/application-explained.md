@@ -1,22 +1,34 @@
-# Try vercel workflows with @mux/ai
+# @mux/ai + Vercel Workflows: Building video intelligence pipelines
 
 ## Goal
 
-This app demonstrates the real-world value of a small set of the `@mux/ai` SDK workflows in a single, concrete Next.js application, using a **staging Mux account** populated with demo content (e.g. **Demuxed talks**). It makes it obvious how these workflows improve:
+This app demonstrates how to combine **`@mux/ai`** with **Vercel Workflows** to build sophisticated video intelligence pipelines in a Next.js application.
 
-- discovery & preview (summarization)
-- accessibility & reach (caption translation, audio dubbing)
-- distribution (turn a long talk into short, accessible social clips)
+Using a **staging Mux account** populated with demo content (e.g. **Demuxed talks**), we show a clear progression of integration patterns—from simple synchronous calls to complex multi-step custom workflows—so developers can see exactly how to architect their own video-AI features.
 
-The core idea: **pick a talk → see the underlying Mux asset → apply workflows → publish more accessible derivatives**.
+The core idea: **understand the building blocks, then compose them into production-ready pipelines**.
 
 ---
 
-## What is `@mux/ai` (in this demo)?
+## What this demo teaches
+
+This isn't just a feature showcase—it's a **reference architecture** for video intelligence. The app explicitly demonstrates three levels of integration:
+
+| Level                       | Pattern                                                        | Example                                           | When to use                              |
+| --------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------- |
+| **1. Sync call**            | Direct function invocation                                     | `getSummaryAndTags()`                             | Instant results, simple request/response |
+| **2. Basic async workflow** | Single `@mux/ai` primitive wrapped in Vercel Workflow          | `translateCaptions`, `translateAudio`             | Long-running ops, needs retry/resume     |
+| **3. Custom workflow**      | Multi-step orchestration combining primitives + external tools | Clip creation (translate + dub + Remotion render) | Complex pipelines, multiple dependencies |
+
+By walking through these levels, developers learn not just _what_ `@mux/ai` can do, but _how_ to integrate it properly into real applications.
+
+---
+
+## What is `@mux/ai`?
 
 `@mux/ai` is an SDK for building **video intelligence on top of Mux Video**.
 
-In “Demuxed Library”, every talk is a real Mux **asset** (with a **playback ID**) and this app uses `@mux/ai` workflows over Mux primitives—like **storyboards/thumbnails** and **transcripts/text tracks (VTT captions)**—to do two important things:
+In "Demuxed Library", every talk is a real Mux **asset** (with a **playback ID**) and this app uses `@mux/ai` workflows over Mux primitives—like **storyboards/thumbnails** and **transcripts/text tracks (VTT captions)**—to do two important things:
 
 - **Generate insights** from the media (structured summary metadata like `title`, `description`, `tags`).
 - **Apply outputs back onto the underlying Mux asset** (attach **translated caption tracks** and **dubbed audio tracks**) so the player can immediately switch languages like a real product.
@@ -25,110 +37,185 @@ In short: this demo shows `@mux/ai` as the bridge between Mux media and AI provi
 
 ---
 
-## Workflows to highlight (as implemented in `app/workflows/`)
+## The three integration levels (IA-first)
 
-This demo explicitly showcases what the SDK can do today:
+This demo's information architecture is structured around these three levels. Each level has dedicated UI surfaces that make the pattern obvious.
 
-- **Summarization** (`getSummaryAndTags(assetId, options)`)
+### Level 1: Synchronous call (`getSummaryAndTags`)
+
+The simplest integration: call a function, get a result.
+
+- **What it does**: Extracts `title`, `description`, and `tags` from storyboard frames + transcript
+- **When it runs**: Inline in a server action or route handler—user sees results immediately
+- **UI surface**: The "Generate summary" action on the detail page; results appear instantly
+
+This is the "hello world" of `@mux/ai`—no workflow infrastructure needed, just a function call.
+
+### Level 2: Basic async workflow (`translateCaptions`, `translateAudio`)
+
+When operations take longer or need retry/resume semantics, wrap a single `@mux/ai` primitive in a Vercel Workflow.
+
+- **What it does**: Translates captions or dubs audio into a target language
+- **When it runs**: Triggered by user action, executes in background, UI polls for status
+- **UI surface**: "Add Spanish captions" / "Dub to French" buttons with inline status callouts
+
+This teaches the pattern: **one primitive → one workflow → status UI**.
+
+### Level 3: Custom workflow (Accessible social clips)
+
+The payoff: combine multiple `@mux/ai` primitives with external tools (Remotion) in a single orchestrated pipeline.
+
+- **What it does**: Creates a shareable social clip with translated captions, dubbed audio, and branded visuals
+- **When it runs**: Multi-step workflow: ensure captions → translate → dub → render → upload
+- **UI surface**: The `/media/[slug]/clips/new` page with preview + "Render clip" action
+
+This is where Vercel Workflows shine—managing dependencies, retries, and state across a complex pipeline.
+
+---
+
+## Primitives from `@mux/ai/workflows`
+
+This demo uses three workflow primitives exported by `@mux/ai/workflows`:
+
+- **`getSummaryAndTags(assetId, options)`** — Summarization
   - Inputs: storyboard frames/thumbnails + (optionally) transcript/text track
   - Outputs: `title`, `description`, `tags`, `storyboardUrl`, optional token usage
-- **Caption translation** (`translateCaptions(assetId, from, to, options)`)
+- **`translateCaptions(assetId, from, to, options)`** — Caption translation
   - Inputs: existing text track VTT
   - Outputs: translated VTT, optional upload to S3 + attach as new Mux text track
-- **Audio translation / dubbing** (`translateAudio(assetId, toLanguageCode, options)`)
+- **`translateAudio(assetId, toLanguageCode, options)`** — Audio dubbing
   - Inputs: audio-only static rendition (`audio.m4a`) of the asset
   - Outputs: dubbed audio file uploaded + attached to the asset as a new Mux audio track
 
-> Note: other workflows exist in this SDK, but this demo’s IA is intentionally designed around the three above.
+> Note: other primitives exist in the SDK, but this demo's IA is intentionally focused on these three to illustrate the sync → async → custom progression.
 
 ---
 
-## The demo product: “Demuxed Library” (IA-first)
+## The demo product: "Demuxed Library"
 
 ### Experience overview
 
-- **Landing page**: a simple pitch + “try it” CTA.
+- **Landing page**: pitch the "three levels" of integration + "try it" CTA.
 - **Talks index**: grid/list of Demuxed talks (title, speakers, year, thumbnail).
-- **Talk detail page**: video player + “Accessibility & localization” controls + “Generated metadata”.
-- **Create social clip page** (per talk): configure a short clip and render an accessible social asset.
+- **Talk detail page**: video player + workflow actions organized by integration level.
+- **Create social clip page** (per talk): the custom workflow showcase.
 
-The detail page is where value becomes visceral: show the video, then show what the SDK can _derive_ (summary) and _apply_ (tracks on the asset).
+The app navigation funnels users through the levels: **browse → see sync results → trigger async workflows → build a custom pipeline**.
 
 ---
 
-## IA: key screens and what they teach the user
+## IA: key screens and what they teach
 
-Each talk is backed by a Mux `assetId` (and one `playbackId`). The app navigation funnels users from “browse” → “understand value” → “produce a shareable output”.
+Each talk is backed by a Mux `assetId` (and one `playbackId`). The screens are designed to make the integration patterns obvious.
 
-### 1) Talks index (`/talks`)
+### 1) Talks index (`/media`)
 
-Primary goal: help users pick a talk fast and preview what the SDK adds.
+**Primary goal**: help users pick a talk fast and preview what Level 1 (sync summarization) adds.
 
 Recommended card layout:
 
 - talk title/speaker/year thumbnail
-- **AI summary title** (or fallback to original title)
+- **AI summary title** (or fallback to original title) — output of `getSummaryAndTags`
 - **3–5 tags** from summarization
-- CTA: **View talk** and **Create social clip**
+- CTA: **View talk**
 
-### 2) Talk detail (`/talks/[slug]`)
+### 2) Talk detail (`/media/[slug]`)
 
-Primary goal: show “applied workflows” on the underlying asset.
+**Primary goal**: show all three integration levels on a single asset.
 
-#### Video player + “Applied tracks” controls (caption + audio)
+The page is organized into clear sections that map to the levels:
 
-Use a Mux player in the UI and expose:
+#### Section A: Video player + applied tracks
 
-- **Caption selector**
-  - Original captions (e.g. `en`)
-  - Translated captions (e.g. `es`, `fr`) created by `translateCaptions`
-- **Audio track selector**
-  - Original audio
-  - Dubbed audio track(s) created by `translateAudio`
+Use a Mux player and expose track selectors:
 
-This demonstrates _applied_ changes to the underlying asset (not just a JSON response).
+- **Caption selector**: Original (en) + translated captions added by Level 2 workflows
+- **Audio selector**: Original audio + dubbed tracks added by Level 2 workflows
 
-#### “Metadata generated” (Summarization)
+This demonstrates _applied_ changes to the underlying Mux asset.
 
-Show:
+#### Section B: Level 1 — Sync summarization
+
+Show the output of `getSummaryAndTags`:
 
 - Generated title, description
 - Tag chips
-- “How it was produced” disclosure: storyboard preview image + (optionally) transcript excerpt
+- "How it was produced" disclosure: storyboard preview + transcript excerpt
 
-Optional delight:
+Label this clearly: **"Sync call → instant result"**
 
-- A toggle for tone presets (normal/professional/sassy) to show prompt control.
+#### Section C: Level 2 — Basic async workflows
 
-#### “Localization quick actions”
+Action buttons for single-primitive workflows:
 
-Keep this section action-oriented so the IA encourages users to _apply_ the workflows:
+- "Add Spanish captions" → runs `translateCaptions` wrapped in Vercel Workflow
+- "Add French captions"
+- "Dub to Spanish" → runs `translateAudio` wrapped in Vercel Workflow
+- "Dub to French"
 
-- “Add Spanish captions” (runs `translateCaptions`)
-- “Add French captions”
-- “Dub to Spanish” (runs `translateAudio`)
-- “Dub to French”
+Each button shows inline status: Queued → Running → Ready
 
-Persist the resulting track IDs and rehydrate them into the player controls.
+Label this clearly: **"Async workflow → status + result"**
 
-### 3) Create social clip (`/talks/[slug]/clips/new`)
+#### Section D: Level 3 — Custom workflow
 
-Primary goal: demonstrate a **custom workflow** built from the highlighted primitives.
+CTA: **"Create social clip"** → navigates to the clip creation page
 
-This screen feels like a “recipe builder” with sensible defaults:
+This previews what the custom workflow produces and links to the full experience.
+
+### 3) Create social clip (`/media/[slug]/clips/new`)
+
+**Primary goal**: demonstrate a **custom workflow** that orchestrates multiple primitives + Remotion.
+
+This is the "recipe builder" for the custom pipeline:
 
 - clip start/end (or start + duration)
 - target languages (captions + dubbing)
 - format preset (1:1, 9:16, 16:9)
 - style preset (captions on/off, speaker layout, waveform/audiogram style, brand colors)
 
+#### Preview-first: iterate before rendering
+
+The page uses a **client-side Remotion Player** to show an instant, interactive preview. This is "free" in the sense that:
+
+- No server-side rendering is triggered
+- No assets are created prematurely
+- Users can tweak timing, styling, language, and layout as many times as they want
+- The preview updates live as inputs change
+
+Only when the user is satisfied do they click **"Render clip"**, which triggers the full Level 3 orchestration workflow.
+
+The page shows:
+
+- **Live Remotion preview** (updates as inputs change) — always visible, no cost
+- **"Render clip" CTA** that triggers the full orchestration workflow — only when ready
+- **Status panel** showing each step: translating captions → dubbing audio → rendering video → uploading
+
 Output: a playable preview + a downloadable share asset.
 
 ---
 
-## The custom workflow to showcase: Accessible generative social clips
+## Level 3 deep dive: The custom workflow
 
-### Value prop
+The custom workflow is where `@mux/ai` + Vercel Workflows really shine. It's a **multi-step pipeline** that combines:
+
+- Multiple `@mux/ai` primitives (`translateCaptions`, `translateAudio`)
+- External tools (Remotion for video rendering)
+- State management across dependent steps
+- Retry/resume semantics for reliability
+
+### Preview vs render: two distinct phases
+
+Level 3 has two phases with very different characteristics:
+
+| Phase       | Where it runs                 | Cost              | Purpose                            |
+| ----------- | ----------------------------- | ----------------- | ---------------------------------- |
+| **Preview** | Client-side (Remotion Player) | Free              | Iterate on timing, style, language |
+| **Render**  | Server-side (Vercel Workflow) | Compute + storage | Produce final MP4 artifact         |
+
+The preview phase is instant and unlimited—users can change the clip boundaries, toggle captions, switch languages, adjust branding, and see the result immediately without triggering any backend work. Only when they're satisfied do they commit to the render phase, which runs the full orchestration workflow.
+
+### What it produces
 
 Turn one long-form talk into **short social clips that are accessible to a wider audience**:
 
@@ -136,47 +223,60 @@ Turn one long-form talk into **short social clips that are accessible to a wider
 - dubbed audio in multiple languages
 - an on-brand, shareable visual (audiogram / visual podcast clip)
 
-### Pipeline (opinionated)
+### Pipeline architecture
 
-Inputs:
+**Inputs** (from the clip creation UI):
 
 - `assetId`
 - clip boundaries (start/end)
 - source caption language (e.g. `en`)
 - target languages (e.g. `es`, `fr`)
+- format preset (9:16, 1:1, 16:9)
 
-Steps:
+**Orchestration steps** (managed by Vercel Workflow):
 
-1. **Summarize the talk** to suggest 3–5 clip ideas (titles + “why it matters”) using `getSummaryAndTags` as context for UI suggestions.
-2. **Ensure captions exist** (use the existing ready text track as the source VTT for translations).
-3. **Translate captions** for selected targets using `translateCaptions`.
-4. **Dub audio** for selected targets using `translateAudio`.
-5. **Render** a share asset with Remotion:
-   - Visual audiogram (waveform + speaker name + talk title)
-   - On-video captions rendered from VTT (choose original or translated)
-   - Optional “dual-language” mode (top: original, bottom: translated)
-6. **Publish / export**:
-   - store rendered mp4 (and poster) in an object store
-   - optionally ingest back into Mux as a new asset for hosting
+1. **Validate prerequisites** — ensure the asset has a ready English caption track
+2. **Translate captions** — call `translateCaptions` for each target language (parallel where possible)
+3. **Dub audio** — call `translateAudio` for each target language (parallel where possible)
+4. **Render with Remotion** — produce the visual clip with:
+   - Video segment from the Mux asset
+   - On-video captions (original or translated)
+   - Optional dubbed audio track
+   - Branding (waveform, speaker name, title card)
+5. **Upload artifacts** — store rendered MP4 + poster to object storage
+6. **Finalize** — update the `Clip` record with URLs, mark status `ready`
+
+Each step is a `"use step"` function in the Vercel Workflow, so failures are isolated and retryable.
+
+### Why Remotion is in the custom workflow (not earlier)
+
+Remotion is **not** part of `@mux/ai`—it's an external tool we're integrating. This is intentional:
+
+- Level 1 and 2 show what `@mux/ai` provides out of the box
+- Level 3 shows how to **compose** `@mux/ai` primitives with other tools
+- The custom workflow demonstrates the full power of `@mux/ai` combined with Vercel Workflows for orchestration
+
+This makes the demo's teaching clear: "Here's what the SDK gives you; here's how you build on top of it."
 
 ### IA implications
 
-This workflow wants a dedicated surface area because it’s a multi-step, multi-output process:
+This workflow needs dedicated surface area:
 
-- a **clip creation wizard** (single flow)
+- a **clip creation wizard** (`/media/[slug]/clips/new`)
 - a **clip library** (per talk) showing generated clips + language variants
-- status UI (queued → rendering → ready) to make the system feel real
+- status UI (queued → translating → dubbing → rendering → ready) to make the pipeline visible
 
 ---
 
-## “Applied vs generated”: how to frame value (for this narrower scope)
+## How to frame outputs in the UI
 
-The page explicitly labels outputs:
+The page explicitly labels outputs by what they represent:
 
-- **Generated insights**: summaries, tags, clip suggestions
-- **Applied changes**: new caption tracks, new audio tracks, and rendered share assets
+- **Generated insights** (Level 1): summaries, tags, clip suggestions — instant, synchronous
+- **Applied changes** (Level 2): new caption tracks, new audio tracks — async, single-primitive
+- **Composed artifacts** (Level 3): rendered social clips with translations + branding — async, multi-step
 
-That framing communicates why this SDK matters: it’s not just AI responses—it’s **AI connected to video assets**.
+This framing communicates the key insight: `@mux/ai` isn't just AI responses—it's **AI connected to video assets**, and Vercel Workflows lets you build reliable pipelines on top.
 
 ---
 
@@ -194,20 +294,23 @@ Seed the staging account with a small curated set:
   - clean speaker-on-stage content
   - talks with slides (good for storyboard + summary)
 
-For localization:
+For each integration level:
 
-- Ensure at least one talk has a good baseline caption track (English)
-- Pre-generate 1–2 translated caption tracks and 1 dubbed audio track for the “wow” factor
-- Pre-render 2–3 clips (9:16) so the “Clips” section looks alive on first load
+- **Level 1**: Pre-run `getSummaryAndTags` on all talks so the index shows AI titles/tags immediately
+- **Level 2**: Pre-generate 1–2 translated caption tracks and 1 dubbed audio track on select talks
+- **Level 3**: Pre-render 2–3 clips (9:16) so the "Clips" section looks alive on first load
 
 ---
 
 ## What makes this a strong showcase
 
-- It’s **real assets** in a real player, not just logs.
-- It demonstrates both:
-  - **analysis** (summary/tags/clip suggestions) and
-  - **asset augmentation** (tracks added back to Mux) plus
-  - **derivative creation** (rendered social assets).
+- It's **real assets** in a real player, not just logs or JSON responses.
+- It teaches a **clear progression**: sync → basic async → custom workflow.
+- It demonstrates the **full integration pattern**:
+  - `@mux/ai` for video intelligence primitives
+  - Vercel Workflows for reliable async orchestration
+  - Remotion for video rendering (showing how to extend beyond the SDK)
 - The UI ties workflows directly to user-facing product value:
-  - better discovery, better accessibility, more shareable distribution.
+  - better discovery (summarization)
+  - better accessibility (captions, dubbing)
+  - more shareable distribution (social clips)
