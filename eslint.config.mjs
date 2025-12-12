@@ -12,6 +12,8 @@ export default antfu({
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vercel Workflows auto-generated files
+    "app/.well-known/**",
   ],
   stylistic: {
     indent: 2,

@@ -52,7 +52,9 @@ body {
   font-weight: 700;
   font-size: 1.125rem;
   letter-spacing: 0.025em;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease;
   cursor: pointer;
   box-shadow: 5px 5px 0 var(--border);
 }
@@ -74,7 +76,9 @@ body {
   border: var(--border-thick) solid var(--border);
   padding: 0.75rem 1.5rem;
   font-weight: 500;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease;
   cursor: pointer;
 }
 
@@ -123,7 +127,9 @@ body {
 
 /* Card hover animation */
 .card-brutal {
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease;
 }
 
 /* Border utilities */
@@ -142,4 +148,3 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-

@@ -3,7 +3,8 @@ import Link from "next/link";
 
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
-import { listAssets, type MuxAsset } from "@/app/lib/mux";
+import { listAssets } from "@/app/lib/mux";
+import type { MuxAsset } from "@/app/lib/mux";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -50,7 +51,8 @@ function getAssetTitle(asset: MuxAsset): string {
   if (passthrough) {
     try {
       const parsed = JSON.parse(passthrough);
-      if (parsed.title) return parsed.title;
+      if (parsed.title)
+        return parsed.title;
     } catch {
       // passthrough is a plain string, use it as title
       if (passthrough.length > 0 && passthrough.length < 200) {
@@ -68,16 +70,18 @@ function getAssetSlug(asset: MuxAsset): string {
 }
 
 function formatDuration(seconds?: number): string {
-  if (!seconds) return "";
+  if (!seconds)
+    return "";
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-function formatDate(createdAt?: number): string {
-  if (!createdAt) return "";
-  // Mux returns created_at as Unix timestamp in seconds
-  const date = new Date(createdAt * 1000);
+function formatDate(createdAt?: string): string {
+  if (!createdAt)
+    return "";
+  // Mux returns created_at as an ISO 8601 string
+  const date = new Date(createdAt);
   return date.toLocaleDateString("en-US", { year: "numeric", month: "short" });
 }
 
@@ -100,19 +104,21 @@ function TalkCard({ asset }: TalkCardProps) {
       <article className="card-brutal overflow-hidden transition-transform duration-100 group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:shadow-[8px_8px_0_var(--border)]">
         {/* Thumbnail */}
         <div className="relative aspect-video w-full overflow-hidden bg-background-dark">
-          {playbackId ? (
-            <Image
-              src={getThumbnailUrl(playbackId)}
-              alt={title}
-              fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <span className="text-foreground-muted">No preview</span>
-            </div>
-          )}
+          {playbackId ?
+              (
+                <Image
+                  src={getThumbnailUrl(playbackId)}
+                  alt={title}
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+              ) :
+              (
+                <div className="flex h-full items-center justify-center">
+                  <span className="text-foreground-muted">No preview</span>
+                </div>
+              )}
           {/* Duration badge */}
           {duration && (
             <div
@@ -188,57 +194,70 @@ function Pagination({ currentPage, totalPages, totalItems }: PaginationProps) {
         className="text-sm text-foreground-muted"
         style={{ fontFamily: "var(--font-space-mono)" }}
       >
-        Showing {startItem}–{endItem} of {totalItems} talk{totalItems !== 1 ? "s" : ""}
+        Showing
+        {" "}
+        {startItem}
+        –
+        {endItem}
+        {" "}
+        of
+        {" "}
+        {totalItems}
+        {" "}
+        talk
+        {totalItems !== 1 ? "s" : ""}
       </p>
 
       {/* Pagination controls */}
       {totalPages > 1 && (
         <div className="flex items-center gap-2">
           {/* Previous button */}
-          {currentPage > 1 ? (
-            <Link
-              href={`/media?page=${currentPage - 1}`}
-              className="btn-outlined flex items-center gap-2 px-4 py-2 text-sm"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="square" strokeLinejoin="miter" d="M15 19l-7-7 7-7" />
-              </svg>
-              Prev
-            </Link>
-          ) : (
-            <span className="flex cursor-not-allowed items-center gap-2 border-3 border-border bg-surface px-4 py-2 text-sm text-foreground-muted opacity-50">
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="square" strokeLinejoin="miter" d="M15 19l-7-7 7-7" />
-              </svg>
-              Prev
-            </span>
-          )}
+          {currentPage > 1 ?
+              (
+                <Link
+                  href={`/media?page=${currentPage - 1}`}
+                  className="btn-outlined flex items-center gap-2 px-4 py-2 text-sm"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="square" strokeLinejoin="miter" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Prev
+                </Link>
+              ) :
+              (
+                <span className="flex cursor-not-allowed items-center gap-2 border-3 border-border bg-surface px-4 py-2 text-sm text-foreground-muted opacity-50">
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="square" strokeLinejoin="miter" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Prev
+                </span>
+              )}
 
           {/* Page numbers */}
           <div
             className="flex items-center gap-1 px-4 text-sm"
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
               <Link
                 key={page}
                 href={`/media?page=${page}`}
                 className={`flex h-10 w-10 items-center justify-center border-2 border-border transition-colors ${
-                  page === currentPage
-                    ? "bg-foreground text-surface"
-                    : "bg-surface hover:bg-surface-elevated"
+                  page === currentPage ?
+                    "bg-foreground text-surface" :
+                    "bg-surface hover:bg-surface-elevated"
                 }`}
               >
                 {page}
@@ -247,36 +266,38 @@ function Pagination({ currentPage, totalPages, totalItems }: PaginationProps) {
           </div>
 
           {/* Next button */}
-          {currentPage < totalPages ? (
-            <Link
-              href={`/media?page=${currentPage + 1}`}
-              className="btn-outlined flex items-center gap-2 px-4 py-2 text-sm"
-            >
-              Next
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="square" strokeLinejoin="miter" d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          ) : (
-            <span className="flex cursor-not-allowed items-center gap-2 border-3 border-border bg-surface px-4 py-2 text-sm text-foreground-muted opacity-50">
-              Next
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="square" strokeLinejoin="miter" d="M9 5l7 7-7 7" />
-              </svg>
-            </span>
-          )}
+          {currentPage < totalPages ?
+              (
+                <Link
+                  href={`/media?page=${currentPage + 1}`}
+                  className="btn-outlined flex items-center gap-2 px-4 py-2 text-sm"
+                >
+                  Next
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="square" strokeLinejoin="miter" d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              ) :
+              (
+                <span className="flex cursor-not-allowed items-center gap-2 border-3 border-border bg-surface px-4 py-2 text-sm text-foreground-muted opacity-50">
+                  Next
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="square" strokeLinejoin="miter" d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              )}
         </div>
       )}
     </div>
@@ -346,24 +367,26 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
           </div>
 
           {/* Asset Grid */}
-          {paginatedAssets.length > 0 ? (
-            <>
-              <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                {paginatedAssets.map(asset => (
-                  <TalkCard key={asset.id} asset={asset} />
-                ))}
-              </div>
+          {paginatedAssets.length > 0 ?
+              (
+                <>
+                  <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+                    {paginatedAssets.map(asset => (
+                      <TalkCard key={asset.id} asset={asset} />
+                    ))}
+                  </div>
 
-              {/* Pagination */}
-              <Pagination
-                currentPage={validPage}
-                totalPages={totalPages}
-                totalItems={totalItems}
-              />
-            </>
-          ) : (
-            <EmptyState />
-          )}
+                  {/* Pagination */}
+                  <Pagination
+                    currentPage={validPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                  />
+                </>
+              ) :
+              (
+                <EmptyState />
+              )}
         </div>
       </main>
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Footer } from "@/app/components/footer";
@@ -233,7 +234,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
         <div className="mx-auto max-w-7xl">
           {/* Page Header */}
           <div className="mb-8">
-            <a
+            <Link
               href="/media"
               className="mb-4 inline-flex items-center gap-2 text-sm text-foreground-muted transition-colors hover:text-foreground"
             >
@@ -247,7 +248,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
                 <path strokeLinecap="square" strokeLinejoin="miter" d="M15 19l-7-7 7-7" />
               </svg>
               Back to talks
-            </a>
+            </Link>
 
             <h1
               className="mb-2 text-3xl font-extrabold tracking-tight md:text-4xl"
