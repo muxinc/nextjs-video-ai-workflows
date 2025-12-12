@@ -153,13 +153,26 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Secondary Info */}
-          <p
-            className="mt-4 text-center text-xs text-foreground-muted"
+          {/* User Journey Flow */}
+          <div
+            className="mt-6 flex flex-col items-center gap-2 text-xs text-foreground-muted md:flex-row md:gap-3"
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
-            Pick a talk → see Level 1 results → trigger Level 2 workflows → build Level 3 pipelines
-          </p>
+            <span>Pick a talk</span>
+            {/* Arrow: down on mobile, right on desktop */}
+            <svg className="h-4 w-4 rotate-90 md:rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span>see Level 1 results</span>
+            <svg className="h-4 w-4 rotate-90 md:rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span>trigger Level 2 workflows</span>
+            <svg className="h-4 w-4 rotate-90 md:rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span>build Level 3 pipelines</span>
+          </div>
         </div>
       </main>
 
