@@ -54,7 +54,7 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
     cue => currentTime >= cue.startTime && currentTime < cue.endTime,
   );
 
-  // Scroll to the active cue
+  // Scroll to the active cue (within container only, avoiding page scroll jacking)
   const scrollToActiveCue = useCallback(() => {
     if (!activeCue || !containerRef.current)
       return;
@@ -63,11 +63,22 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
     if (!cueElement)
       return;
 
+    const container = containerRef.current;
+
+    // Calculate scroll position to center the cue within the container
+    const containerHeight = container.clientHeight;
+    const cueOffsetTop = cueElement.offsetTop;
+    const cueHeight = cueElement.offsetHeight;
+
+    // Target scroll position: center the cue vertically in the container
+    const targetScrollTop = cueOffsetTop - (containerHeight / 2) + (cueHeight / 2);
+
     isAutoScrollingRef.current = true;
 
-    cueElement.scrollIntoView({
+    // Use scrollTo on the container only - this prevents page scroll jacking
+    container.scrollTo({
+      top: targetScrollTop,
       behavior: "smooth",
-      block: "center",
     });
 
     // Reset the auto-scrolling flag after animation completes
@@ -144,7 +155,8 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const hitCueIds = useMemo(() => {
-    if (!normalizedQuery) return [];
+    if (!normalizedQuery)
+      return [];
     return cues
       .filter(cue => cue.text.toLowerCase().includes(normalizedQuery))
       .map(cue => cue.id);
@@ -152,26 +164,16 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
 
   const hitCueIdSet = useMemo(() => new Set(hitCueIds), [hitCueIds]);
 
-  const activeHitCueId = hitCueIds[activeHitIndex] ?? null;
+  // Derive a safe active hit index (clamped to valid range)
+  const safeActiveHitIndex = useMemo(() => {
+    if (!normalizedQuery || hitCueIds.length === 0)
+      return -1;
+    if (activeHitIndex === -1)
+      return 0;
+    return Math.min(activeHitIndex, hitCueIds.length - 1);
+  }, [normalizedQuery, hitCueIds.length, activeHitIndex]);
 
-  // Keep active hit index in sync with query changes
-  useEffect(() => {
-    if (!normalizedQuery) {
-      setActiveHitIndex(-1);
-      setSemanticHighlightedCueId(null);
-      return;
-    }
-
-    // If we have hits and no active hit yet, default to the first.
-    // If the active index is out of bounds, clamp it.
-    if (hitCueIds.length === 0) {
-      setActiveHitIndex(-1);
-    } else if (activeHitIndex === -1) {
-      setActiveHitIndex(0);
-    } else if (activeHitIndex >= hitCueIds.length) {
-      setActiveHitIndex(hitCueIds.length - 1);
-    }
-  }, [activeHitIndex, hitCueIds.length, normalizedQuery]);
+  const activeHitCueId = hitCueIds[safeActiveHitIndex] ?? null;
 
   // Clear semantic highlight after a delay
   useEffect(() => {
@@ -189,7 +191,8 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
     const containingCue = cues.find(
       cue => targetTime >= cue.startTime && targetTime < cue.endTime,
     );
-    if (containingCue) return containingCue;
+    if (containingCue)
+      return containingCue;
 
     // Otherwise, find the closest cue by start time
     let closestCue: TranscriptCue | null = null;
@@ -231,27 +234,31 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
   const goToHitIndex = useCallback((nextIndex: number) => {
     const targetCueId = hitCueIds[nextIndex];
     const targetCue = cues.find(cue => cue.id === targetCueId);
-    if (!targetCue) return;
+    if (!targetCue)
+      return;
     setActiveHitIndex(nextIndex);
     scrollToCue(targetCue);
   }, [cues, hitCueIds, scrollToCue]);
 
   const handlePrevHit = useCallback(() => {
-    if (hitCueIds.length === 0) return;
-    const nextIndex = activeHitIndex <= 0 ? hitCueIds.length - 1 : activeHitIndex - 1;
+    if (hitCueIds.length === 0)
+      return;
+    const nextIndex = safeActiveHitIndex <= 0 ? hitCueIds.length - 1 : safeActiveHitIndex - 1;
     goToHitIndex(nextIndex);
-  }, [activeHitIndex, goToHitIndex, hitCueIds.length]);
+  }, [safeActiveHitIndex, goToHitIndex, hitCueIds.length]);
 
   const handleNextHit = useCallback(() => {
-    if (hitCueIds.length === 0) return;
-    const nextIndex = activeHitIndex === -1 || activeHitIndex >= hitCueIds.length - 1 ? 0 : activeHitIndex + 1;
+    if (hitCueIds.length === 0)
+      return;
+    const nextIndex = safeActiveHitIndex >= hitCueIds.length - 1 ? 0 : safeActiveHitIndex + 1;
     goToHitIndex(nextIndex);
-  }, [activeHitIndex, goToHitIndex, hitCueIds.length]);
+  }, [safeActiveHitIndex, goToHitIndex, hitCueIds.length]);
 
   // Handle transcript search
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (!normalizedQuery) return;
+    if (!normalizedQuery)
+      return;
 
     // Prefer literal hits (client-side), fallback to semantic (server) search
     if (hitCueIds.length > 0) {
@@ -259,7 +266,8 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
       return;
     }
 
-    if (!muxAssetId) return;
+    if (!muxAssetId)
+      return;
 
     startSearchTransition(async () => {
       const result = await searchTranscript(searchQuery, muxAssetId);
@@ -297,6 +305,8 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
+                  setActiveHitIndex(-1);
+                  setSemanticHighlightedCueId(null);
                 }}
                 placeholder="Search transcript..."
                 className="flex-1 border-2 border-border bg-surface px-3 py-1.5 text-sm placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent"
@@ -309,16 +319,18 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
                 aria-label="Find next"
                 title="Find next"
               >
-                {isSearching ? (
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : (
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="square" strokeLinejoin="miter" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                )}
+                {isSearching ?
+                    (
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) :
+                    (
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="square" strokeLinejoin="miter" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    )}
               </button>
               {normalizedQuery && (
                 <button
@@ -339,7 +351,7 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
                 <span style={{ fontFamily: "var(--font-space-mono)" }}>
                   {hitCueIds.length === 0 ?
                     "No hits" :
-                    `${hitCueIds.length} hit${hitCueIds.length === 1 ? "" : "s"} • ${Math.max(activeHitIndex, 0) + 1}/${hitCueIds.length}`}
+                    `${hitCueIds.length} hit${hitCueIds.length === 1 ? "" : "s"} • ${safeActiveHitIndex + 1}/${hitCueIds.length}`}
                 </span>
 
                 <div className="flex items-center gap-2">
@@ -399,13 +411,13 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
               className={`group flex cursor-pointer gap-4 px-5 py-3 transition-all hover:bg-surface-elevated ${
                 semanticHighlightedCueId === cue.id ?
                   "animate-pulse border-l-4 border-yellow-400 bg-yellow-400/20" :
-                activeHitCueId === cue.id ?
-                  "border-l-4 border-yellow-400 bg-yellow-400/10" :
-                hitCueIdSet.has(cue.id) ?
-                  "border-l-4 border-yellow-400/50 bg-yellow-400/5" :
-                activeCue?.id === cue.id ?
-                  "border-l-4 border-accent bg-surface-elevated" :
-                  ""
+                  activeHitCueId === cue.id ?
+                    "border-l-4 border-yellow-400 bg-yellow-400/10" :
+                    hitCueIdSet.has(cue.id) ?
+                      "border-l-4 border-yellow-400/50 bg-yellow-400/5" :
+                      activeCue?.id === cue.id ?
+                        "border-l-4 border-accent bg-surface-elevated" :
+                        ""
               }`}
             >
               {/* Timestamp */}
