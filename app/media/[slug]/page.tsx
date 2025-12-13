@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Footer } from "@/app/components/footer";
@@ -7,8 +6,7 @@ import { getPlaybackIdForAsset } from "@/app/lib/mux";
 import { createClient } from "@/app/lib/supabase/server";
 import type { Tables } from "@/app/lib/supabase/types";
 
-import { Level1SummaryAndTags } from "./level-1-summary";
-import { MediaPlayerWithTranscript } from "./media-player-with-transcript";
+import { MediaContent } from "./media-content";
 
 type Video = Tables<"videos">;
 
@@ -104,61 +102,6 @@ function parseVtt(vttContent: string): ParsedVttCue[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Level Section Components
-// ─────────────────────────────────────────────────────────────────────────────
-
-function LevelSection({
-  level,
-  title,
-  badge,
-  badgeClass,
-  description,
-  children,
-}: {
-  level: number;
-  title: string;
-  badge: string;
-  badgeClass: string;
-  description: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <section className="card-brutal p-6">
-      {/* Level header */}
-      <div className="mb-4 flex items-center gap-3">
-        <span className={`badge ${badgeClass}`}>{badge}</span>
-        <span
-          className="text-xs text-foreground-muted"
-          style={{ fontFamily: "var(--font-space-mono)" }}
-        >
-          LEVEL
-          {" "}
-          {level}
-        </span>
-      </div>
-
-      {/* Title and description */}
-      <h3
-        className="mb-2 text-xl font-bold"
-        style={{ fontFamily: "var(--font-syne)" }}
-      >
-        {title}
-      </h3>
-      <p className="mb-6 text-sm text-foreground-muted">{description}</p>
-
-      {/* Content */}
-      {children || (
-        <div className="flex items-center gap-2 border-2 border-dashed border-border/50 bg-surface-elevated/50 px-4 py-8 text-center">
-          <span className="mx-auto text-sm text-foreground-muted">
-            Coming soon — this section will be implemented next
-          </span>
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Page Component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -186,7 +129,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
     notFound();
   }
 
-  // Get video metadata from Supabase
+  // Get video metadata
   const title = getVideoTitle(video);
 
   // Parse transcript from Supabase VTT
@@ -198,76 +141,15 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
     <div className="flex min-h-screen flex-col">
       <Header currentPath="/media" />
 
-      <main className="flex-1 px-6 py-12">
+      <main className="flex-1 px-4 py-8 md:px-6 md:py-12">
         <div className="mx-auto max-w-7xl">
-          {/* Page Header */}
-          <div className="mb-8">
-            <Link
-              href="/media"
-              className="mb-4 inline-flex items-center gap-2 text-sm text-foreground-muted transition-colors hover:text-foreground"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="square" strokeLinejoin="miter" d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to talks
-            </Link>
-
-            <h1
-              className="mb-2 text-3xl font-extrabold tracking-tight md:text-4xl"
-              style={{ fontFamily: "var(--font-syne)" }}
-            >
-              {title}
-            </h1>
-          </div>
-
-          {/* Player + Transcript Row */}
-          <div className="mb-8">
-            <MediaPlayerWithTranscript
-              playbackId={playbackId}
-              muxAssetId={video.mux_asset_id}
-              title={title}
-              transcriptCues={transcriptCues}
-              accentColor="#ff6101"
-            />
-          </div>
-
-          {/* Level Sections: Two-column on desktop */}
-          <div className="grid items-start gap-8 lg:grid-cols-2 xl:grid-cols-3">
-            {/* Level 1: Sync Call */}
-            <LevelSection
-              level={1}
-              title="Generate Summary & Tags"
-              badge="SYNC CALL"
-              badgeClass="badge-sync"
-              description="Simply call @mux/ai directly from server-side code with minimal workflow infrastructure. Extracts title, summary, and tags from storyboard and transcript."
-            >
-              <Level1SummaryAndTags assetId={video.mux_asset_id} />
-            </LevelSection>
-
-            {/* Level 2: Basic Async Workflows */}
-            <LevelSection
-              level={2}
-              title="Translate Captions & Audio"
-              badge="ASYNC WORKFLOW"
-              badgeClass="badge-async"
-              description="Invoke @mux/ai primitives and workflows within a Vercel Workflow to add translated captions or dubbed audio tracks."
-            />
-
-            {/* Level 3: Custom Workflow */}
-            <LevelSection
-              level={3}
-              title="Create Social Clip"
-              badge="CUSTOM WORKFLOW"
-              badgeClass="badge-custom"
-              description="Compose multiple @mux/ai primitives and workflows with external tools like Remotion to build complex video processing pipelines. Create shareable clips with translated captions and dubbed audio."
-            />
-          </div>
+          {/* Main content */}
+          <MediaContent
+            playbackId={playbackId}
+            muxAssetId={video.mux_asset_id}
+            title={title}
+            transcriptCues={transcriptCues}
+          />
         </div>
       </main>
 
