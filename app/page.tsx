@@ -17,7 +17,7 @@ function DemuxedLogo() {
         className="text-sm tracking-[0.4em] text-foreground-muted md:text-base"
         style={{ fontFamily: "var(--font-space-mono)" }}
       >
-        VIDEO LIBRARY
+        STUDIO
       </p>
     </div>
   );

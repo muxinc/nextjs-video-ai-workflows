@@ -17,7 +17,7 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Demuxed Library | @mux/ai + Vercel Workflows",
+  title: "DEMUXED Studio | @mux/ai + Vercel Workflows",
   description: "A reference architecture demonstrating how to integrate @mux/ai with Vercel Workflows to build video intelligence pipelines in Next.js.",
 };
 

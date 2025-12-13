@@ -3,16 +3,14 @@ import { notFound } from "next/navigation";
 
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
-import {
-  findTextTrack,
-  getAsset,
-  getReadyTextTracks,
-  getTrackVtt,
-} from "@/app/lib/mux";
-import type { MuxAsset } from "@/app/lib/mux";
+import { getPlaybackIdForAsset } from "@/app/lib/mux";
+import { createClient } from "@/app/lib/supabase/server";
+import type { Tables } from "@/app/lib/supabase/types";
 
 import { Level1SummaryAndTags } from "./level-1-summary";
 import { MediaPlayerWithTranscript } from "./media-player-with-transcript";
+
+type Video = Tables<"videos">;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -33,42 +31,8 @@ interface ParsedVttCue {
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────────────────
 
-function getPlaybackId(asset: MuxAsset): string | undefined {
-  const playbackIds = asset.playback_ids || [];
-  const publicId = playbackIds.find(pid => pid.policy === "public");
-  return publicId?.id || playbackIds[0]?.id;
-}
-
-function getAssetTitle(asset: MuxAsset): string {
-  // Prefer meta.title if set on the asset
-  const metaTitle = asset.meta?.title;
-  if (metaTitle) {
-    return metaTitle;
-  }
-
-  // Fall back to passthrough metadata
-  const passthrough = asset.passthrough;
-  if (passthrough) {
-    try {
-      const parsed = JSON.parse(passthrough);
-      if (parsed.title)
-        return parsed.title;
-    } catch {
-      if (passthrough.length > 0 && passthrough.length < 200) {
-        return passthrough;
-      }
-    }
-  }
-
-  return `Talk ${asset.id.slice(0, 8)}`;
-}
-
-function formatDuration(seconds?: number): string {
-  if (!seconds)
-    return "";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
+function getVideoTitle(video: Video): string {
+  return video.title ?? `Talk ${video.id.slice(0, 8)}`;
 }
 
 /**
@@ -201,39 +165,34 @@ function LevelSection({
 export default async function MediaDetailPage({ params }: MediaDetailPageProps) {
   const { slug } = await params;
 
-  // For now, slug is the asset ID
-  // TODO: Replace with proper slug lookup when database is available
-  let asset: MuxAsset;
+  // Slug is the mux_asset_id - fetch video metadata from Supabase
+  const supabase = await createClient();
+  const { data: video } = await supabase
+    .from("videos")
+    .select()
+    .eq("mux_asset_id", slug)
+    .single();
+
+  if (!video) {
+    notFound();
+  }
+
+  // Fetch playback ID from Mux
+  let playbackId: string;
   try {
-    asset = await getAsset(slug);
+    const result = await getPlaybackIdForAsset(slug);
+    playbackId = result.playbackId;
   } catch {
     notFound();
   }
 
-  // Get playback ID for the player
-  const playbackId = getPlaybackId(asset);
-  if (!playbackId) {
-    notFound();
-  }
+  // Get video metadata from Supabase
+  const title = getVideoTitle(video);
 
-  // Get asset metadata
-  const title = getAssetTitle(asset);
-  const duration = formatDuration(asset.duration);
-
-  // Get text tracks for transcript
-  const textTracks = getReadyTextTracks(asset);
-  const primaryTextTrack = findTextTrack(asset, "en") || textTracks[0];
-
-  // Fetch transcript if available
-  let transcriptCues: ParsedVttCue[] = [];
-  if (primaryTextTrack?.id) {
-    try {
-      const vttContent = await getTrackVtt(playbackId, primaryTextTrack.id);
-      transcriptCues = parseVtt(vttContent);
-    } catch {
-      // Transcript not available - that's okay
-    }
-  }
+  // Parse transcript from Supabase VTT
+  const transcriptCues: ParsedVttCue[] = video.transcript_en_vtt ?
+      parseVtt(video.transcript_en_vtt) :
+      [];
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -265,17 +224,6 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
             >
               {title}
             </h1>
-
-            {duration && (
-              <p
-                className="text-sm text-foreground-muted"
-                style={{ fontFamily: "var(--font-space-mono)" }}
-              >
-                Duration:
-                {" "}
-                {duration}
-              </p>
-            )}
           </div>
 
           {/* Player + Transcript Row */}
@@ -298,7 +246,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
               badgeClass="badge-sync"
               description="Simply call @mux/ai directly from server-side code with minimal workflow infrastructure. Extracts title, summary, and tags from storyboard and transcript."
             >
-              <Level1SummaryAndTags assetId={asset.id} />
+              <Level1SummaryAndTags assetId={video.mux_asset_id} />
             </LevelSection>
 
             {/* Level 2: Basic Async Workflows */}

@@ -22,7 +22,7 @@ export function Header({ currentPath }: HeaderProps) {
             className="text-[10px] tracking-[0.2em] text-foreground-muted"
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
-            LIBRARY
+            STUDIO
           </span>
         </Link>
         <nav className="flex items-center gap-4">
