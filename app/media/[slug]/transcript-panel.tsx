@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { searchTranscript } from "./transcript-actions";
@@ -105,25 +106,28 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, tit
     if (isAutoScrollingRef.current)
       return;
 
-    // Determine scroll direction relative to active cue
+    // Check if the active cue is visible in the container
     if (activeCue && containerRef.current) {
       const cueElement = cueRefs.current.get(activeCue.id);
       if (cueElement) {
         const containerRect = containerRef.current.getBoundingClientRect();
         const cueRect = cueElement.getBoundingClientRect();
 
-        // If the cue is below the visible area, arrow should point down
-        // If the cue is above the visible area, arrow should point up
-        if (cueRect.top > containerRect.bottom) {
-          setScrollDirection("down");
-        } else if (cueRect.bottom < containerRect.top) {
-          setScrollDirection("up");
+        // Check if cue is out of view
+        const isAboveView = cueRect.bottom < containerRect.top;
+        const isBelowView = cueRect.top > containerRect.bottom;
+        const isOutOfView = isAboveView || isBelowView;
+
+        if (isOutOfView) {
+          // Set scroll direction for the arrow indicator
+          setScrollDirection(isBelowView ? "down" : "up");
+          setShowJumpButton(true);
+        } else {
+          // Cue is visible, hide the button
+          setShowJumpButton(false);
         }
       }
     }
-
-    // User has manually scrolled - show the jump button
-    setShowJumpButton(true);
   }, [activeCue]);
 
   // Jump back to current cue
@@ -314,84 +318,140 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, tit
         {muxAssetId && (
           <div className="flex flex-col gap-2">
             <form onSubmit={handleSearch} className="flex gap-2">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setActiveHitIndex(-1);
-                  setSemanticHighlightedCueId(null);
-                }}
-                placeholder="Search transcript..."
-                className="flex-1 border-2 border-border bg-surface px-3 py-1.5 text-sm placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent"
-                style={{ fontFamily: "var(--font-space-mono)" }}
-              />
-              <button
+              <motion.div
+                className="relative flex-1"
+                initial={false}
+                animate={{ scale: normalizedQuery ? 1 : 1 }}
+              >
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setActiveHitIndex(-1);
+                    setSemanticHighlightedCueId(null);
+                  }}
+                  placeholder="Search transcript..."
+                  className="w-full border-2 border-border bg-surface px-3 py-1.5 text-sm placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                  style={{ fontFamily: "var(--font-space-mono)" }}
+                />
+              </motion.div>
+              <motion.button
                 type="submit"
                 disabled={isSearching || !normalizedQuery}
-                className="border-2 border-border bg-accent px-3 py-1.5 text-sm font-bold transition-all hover:shadow-[2px_2px_0_var(--border)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="border-2 border-border bg-accent px-3 py-1.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Find next"
                 title="Find next"
+                whileHover={{ scale: 1.05, boxShadow: "2px 2px 0 var(--border)" }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
-                {isSearching ?
-                    (
-                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                    ) :
-                    (
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="square" strokeLinejoin="miter" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    )}
-              </button>
-              {normalizedQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="border-2 border-border bg-surface px-3 py-1.5 text-sm font-bold transition-all hover:shadow-[2px_2px_0_var(--border)]"
-                  aria-label="Clear search"
-                  title="Clear search"
-                >
-                  ✕
-                </button>
-              )}
+                <AnimatePresence mode="wait" initial={false}>
+                  {isSearching ?
+                      (
+                        <motion.svg
+                          key="spinner"
+                          className="h-4 w-4 animate-spin"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          initial={{ opacity: 0, rotate: -90 }}
+                          animate={{ opacity: 1, rotate: 0 }}
+                          exit={{ opacity: 0, rotate: 90 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </motion.svg>
+                      ) :
+                      (
+                        <motion.svg
+                          key="search"
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          <path strokeLinecap="square" strokeLinejoin="miter" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </motion.svg>
+                      )}
+                </AnimatePresence>
+              </motion.button>
+              <AnimatePresence mode="popLayout">
+                {normalizedQuery && (
+                  <motion.button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="border-2 border-border bg-surface px-3 py-1.5 text-sm font-bold"
+                    aria-label="Clear search"
+                    title="Clear search"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    whileHover={{ scale: 1.05, boxShadow: "2px 2px 0 var(--border)" }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.12, ease: "easeOut" }}
+                  >
+                    ✕
+                  </motion.button>
+                )}
+              </AnimatePresence>
             </form>
 
             {/* Hit UI (only when there is a query) */}
-            {normalizedQuery && (
-              <div className="flex items-center justify-between gap-3 text-xs text-foreground-muted">
-                <span style={{ fontFamily: "var(--font-space-mono)" }}>
-                  {hitCueIds.length === 0 ?
-                    "No hits" :
-                    `${hitCueIds.length} hit${hitCueIds.length === 1 ? "" : "s"} • ${safeActiveHitIndex + 1}/${hitCueIds.length}`}
-                </span>
+            <AnimatePresence mode="popLayout">
+              {normalizedQuery && (
+                <motion.div
+                  className="mt-2 flex items-center justify-between gap-3 overflow-hidden text-xs text-foreground-muted"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{
+                    height: { duration: 0.15, ease: "easeOut" },
+                    opacity: { duration: 0.1 },
+                  }}
+                >
+                  <span style={{ fontFamily: "var(--font-space-mono)" }}>
+                    {hitCueIds.length === 0 ?
+                      "No hits" :
+                      `${hitCueIds.length} hit${hitCueIds.length === 1 ? "" : "s"} • ${safeActiveHitIndex + 1}/${hitCueIds.length}`}
+                  </span>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handlePrevHit}
-                    disabled={hitCueIds.length === 0}
-                    className="border-2 border-border bg-surface px-2 py-1 font-bold transition-all hover:shadow-[2px_2px_0_var(--border)] disabled:cursor-not-allowed disabled:opacity-50"
-                    aria-label="Previous hit"
-                    title="Previous hit"
-                  >
-                    Prev
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNextHit}
-                    disabled={hitCueIds.length === 0}
-                    className="border-2 border-border bg-surface px-2 py-1 font-bold transition-all hover:shadow-[2px_2px_0_var(--border)] disabled:cursor-not-allowed disabled:opacity-50"
-                    aria-label="Next hit"
-                    title="Next hit"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
+                  <div className="flex items-center gap-2">
+                    <motion.button
+                      type="button"
+                      onClick={handlePrevHit}
+                      disabled={hitCueIds.length === 0}
+                      className="border-2 border-border bg-surface px-2 py-1 font-bold disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Previous hit"
+                      title="Previous hit"
+                      whileHover={{ scale: 1.05, boxShadow: "2px 2px 0 var(--border)" }}
+                      whileTap={{ scale: 0.95 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    >
+                      Prev
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={handleNextHit}
+                      disabled={hitCueIds.length === 0}
+                      className="border-2 border-border bg-surface px-2 py-1 font-bold disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Next hit"
+                      title="Next hit"
+                      whileHover={{ scale: 1.05, boxShadow: "2px 2px 0 var(--border)" }}
+                      whileTap={{ scale: 0.95 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    >
+                      Next
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>
@@ -404,7 +464,7 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, tit
       >
         <div className="divide-y divide-border/30">
           {cues.map(cue => (
-            <div
+            <motion.div
               key={cue.id}
               ref={(el) => {
                 if (el) {
@@ -422,35 +482,73 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, tit
                   handleCueClick(cue);
                 }
               }}
-              className={`group flex cursor-pointer gap-4 px-5 py-3 transition-all hover:bg-surface-elevated ${
-                semanticHighlightedCueId === cue.id ?
-                  "animate-pulse border-l-4 border-yellow-400 bg-yellow-400/20" :
+              className="group relative flex cursor-pointer gap-4 overflow-hidden px-5 py-3"
+              initial={false}
+              animate={{
+                backgroundColor: semanticHighlightedCueId === cue.id ?
+                  "rgba(250, 204, 21, 0.2)" :
                   activeHitCueId === cue.id ?
-                    "border-l-4 border-yellow-400 bg-yellow-400/10" :
+                    "rgba(250, 204, 21, 0.1)" :
                     hitCueIdSet.has(cue.id) ?
-                      "border-l-4 border-yellow-400/50 bg-yellow-400/5" :
+                      "rgba(250, 204, 21, 0.05)" :
                       activeCue?.id === cue.id ?
-                        "border-l-4 border-accent bg-surface-elevated" :
-                        ""
-              }`}
+                        "var(--surface-elevated)" :
+                        "transparent",
+              }}
+              whileHover={{ backgroundColor: "var(--surface-elevated)" }}
+              transition={{ duration: 0.2 }}
             >
+              {/* Animated highlight bar */}
+              <motion.div
+                className="absolute inset-y-0 left-0 w-1"
+                initial={false}
+                animate={{
+                  scaleY: semanticHighlightedCueId === cue.id ||
+                    activeHitCueId === cue.id ||
+                    hitCueIdSet.has(cue.id) ||
+                    activeCue?.id === cue.id ?
+                    1 :
+                    0,
+                  backgroundColor: semanticHighlightedCueId === cue.id ?
+                    "#facc15" :
+                    activeHitCueId === cue.id ?
+                      "#facc15" :
+                      hitCueIdSet.has(cue.id) ?
+                        "rgba(250, 204, 21, 0.5)" :
+                        activeCue?.id === cue.id ?
+                          "var(--accent)" :
+                          "transparent",
+                  opacity: semanticHighlightedCueId === cue.id ? [1, 0.5, 1] : 1,
+                }}
+                transition={{
+                  scaleY: { type: "spring", stiffness: 500, damping: 30 },
+                  backgroundColor: { duration: 0.2 },
+                  opacity: semanticHighlightedCueId === cue.id ?
+                      { duration: 0.8, repeat: Infinity, ease: "easeInOut" } :
+                      { duration: 0.2 },
+                }}
+                style={{ originY: 0.5 }}
+              />
+
               {/* Timestamp */}
-              <span
-                className={`shrink-0 text-xs transition-colors group-hover:text-accent ${
-                  activeCue?.id === cue.id ?
-                    "text-accent" :
-                    "text-foreground-muted"
-                }`}
+              <motion.span
+                className="shrink-0 text-xs"
                 style={{ fontFamily: "var(--font-space-mono)" }}
+                initial={false}
+                animate={{
+                  color: activeCue?.id === cue.id ? "var(--accent)" : "var(--foreground-muted)",
+                }}
+                whileHover={{ color: "var(--accent)" }}
+                transition={{ duration: 0.15 }}
               >
                 {formatTime(cue.startTime)}
-              </span>
+              </motion.span>
 
               {/* Text */}
               <p className="text-sm leading-relaxed text-foreground">
                 {cue.text}
               </p>
-            </div>
+            </motion.div>
           ))}
         </div>
 
@@ -466,28 +564,38 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, tit
       </div>
 
       {/* Jump to current CTA - shown when user has scrolled away */}
-      {showJumpButton && activeCue && (
-        <button
-          type="button"
-          onClick={handleJumpToCurrent}
-          className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 border-3 border-border bg-accent px-4 py-2 text-sm font-bold text-foreground shadow-[4px_4px_0_var(--border)] transition-all hover:-translate-x-1/2 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_var(--border)]"
-        >
-          <svg
-            className={`h-4 w-4 ${scrollDirection === "down" ? "rotate-180" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
+      <AnimatePresence>
+        {showJumpButton && activeCue && (
+          <motion.button
+            type="button"
+            onClick={handleJumpToCurrent}
+            className="absolute bottom-4 left-1/2 z-10 flex items-center gap-2 border-3 border-border bg-accent px-4 py-2 text-sm font-bold text-foreground shadow-[4px_4px_0_var(--border)]"
+            initial={{ opacity: 0, y: 20, x: "-50%", scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, x: "-50%", scale: 1 }}
+            exit={{ opacity: 0, y: 10, x: "-50%", scale: 0.95 }}
+            whileHover={{ y: -2, boxShadow: "6px 6px 0 var(--border)" }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 500, damping: 28 }}
           >
-            <path
-              strokeLinecap="square"
-              strokeLinejoin="miter"
-              d="M5 12l7-7 7 7M12 5v14"
-            />
-          </svg>
-          Jump to current
-        </button>
-      )}
+            <motion.svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              animate={{ rotate: scrollDirection === "down" ? 180 : 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            >
+              <path
+                strokeLinecap="square"
+                strokeLinejoin="miter"
+                d="M5 12l7-7 7 7M12 5v14"
+              />
+            </motion.svg>
+            Jump to current
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

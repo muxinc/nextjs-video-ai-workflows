@@ -17,6 +17,7 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.87.1",
     "ai": "^5.0.113",
+    "motion": "^12.23.26",
     "next": "16.0.10",
     "react": "19.2.0",
     "react-dom": "19.2.0",
