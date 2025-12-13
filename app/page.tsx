@@ -197,26 +197,26 @@ export default function Home() {
             <div className="mt-6 grid gap-6 md:grid-cols-3">
               <LevelCard
                 level="LEVEL 1"
-                badge="SYNC CALL"
+                badge="Primitives"
                 badgeClass="badge-sync"
                 title="Direct Function Calls"
-                description="Call @mux/ai primitives and workflows directly from server-side code. Simple, fast iteration."
-                example="getSummaryAndTags()"
+                description="Fetch and transform Mux video assets like storyboards and transcripts to be used in workflows."
+                example="fetchTranscriptForAsset(assetId)"
               />
               <LevelCard
                 level="LEVEL 2"
-                badge="LEVERAGE ASYNC WORKFLOW"
+                badge="Workflows"
                 badgeClass="badge-async"
                 title="Leverage Async Workflows"
-                description="Wrap primitives in Vercel Workflows for retries, durable execution, and progress tracking."
+                description="Wrap primitives in Vercel Workflows for retries, durable execution, and progress tracking using preferred workflows."
                 example="translateCaptions / translateAudio"
               />
               <LevelCard
                 level="LEVEL 3"
-                badge="CUSTOM WORKFLOW"
+                badge="Connectors"
                 badgeClass="badge-custom"
                 title="Compose Custom Workflows"
-                description="Orchestrate multiple steps and external tooling (e.g. Remotion) to produce new media outputs."
+                description="Orchestrate multiple primitives, workflows, optional connectors and external tooling (e.g. Remotion) to produce new media outputs."
                 example="Automated social clip creation"
               />
             </div>
