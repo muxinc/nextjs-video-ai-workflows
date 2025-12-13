@@ -9,7 +9,8 @@ import { createClient } from "./server";
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface VideoChunkResult {
+/** Raw result from the match_video_chunks RPC function */
+interface RawVideoChunkResult {
   chunk_id: string;
   chunk_text: string;
   mux_asset_id: string;
@@ -17,7 +18,10 @@ export interface VideoChunkResult {
   similarity_score: number;
   video_id: string;
   visual_description: string;
-  // Enriched fields
+}
+
+/** Enriched result with additional metadata from videos table and Mux */
+export interface VideoChunkResult extends RawVideoChunkResult {
   playback_id: string | null;
   title: string | null;
   description: string | null;
@@ -67,9 +71,9 @@ export async function searchVideoChunks(
   }
 
   // Get unique video_ids for fetching metadata
-  const uniqueVideoIds = [...new Set(chunks.map((c: VideoChunkResult) => c.video_id))];
-  const uniqueChunkIds = [...new Set(chunks.map((c: VideoChunkResult) => c.chunk_id))];
-  const uniqueAssetIds = [...new Set(chunks.map((c: VideoChunkResult) => c.mux_asset_id))];
+  const uniqueVideoIds = [...new Set(chunks.map((c: RawVideoChunkResult) => c.video_id))];
+  const uniqueChunkIds = [...new Set(chunks.map((c: RawVideoChunkResult) => c.chunk_id))];
+  const uniqueAssetIds = [...new Set(chunks.map((c: RawVideoChunkResult) => c.mux_asset_id))];
 
   // Fetch video metadata (title, description)
   const { data: videos, error: videosError } = await supabase
@@ -109,7 +113,7 @@ export async function searchVideoChunks(
   const playbackMap = new Map(playbackResults.map(r => [r.assetId, r.playbackId]));
 
   // Enrich the chunks with additional data
-  const enrichedChunks: VideoChunkResult[] = chunks.map((chunk: VideoChunkResult) => {
+  const enrichedChunks: VideoChunkResult[] = chunks.map((chunk: RawVideoChunkResult) => {
     const video = videoMap.get(chunk.video_id);
     const chunkDetail = chunkMap.get(chunk.chunk_id);
     const playbackId = playbackMap.get(chunk.mux_asset_id);
