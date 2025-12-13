@@ -549,6 +549,10 @@ This ordering builds the app level-by-level so the teaching progression is alway
 - [x] **Create a single Mux client module**
   - [x] Add `app/lib/mux.ts` wrapper that exports the minimal read helpers we need (assets list/retrieve, playback ID extraction, audio track helpers)
   - [x] Add text track helpers (`getReadyTextTracks`, `findTextTrack`, `getTranscript`, `getTrackVtt`)
+- [x] **Connect to Supabase for persisted data**
+  - [x] Set up Supabase project and configure `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` env vars
+  - [x] Create `app/lib/supabase/server.ts` client module with typed database schema
+  - [x] Store asset metadata to reduce Mux API calls and mitigate rate limits during high traffic
 
 ### 1) Client-side workflow state (localStorage)
 
@@ -572,15 +576,14 @@ This ordering builds the app level-by-level so the teaching progression is alway
 
 ### 3) Level 1: Sync summarization (`getSummaryAndTags`)
 
-- [ ] **Implement "Generate summary" path**
-  - [ ] Server action calls `getSummaryAndTags(assetId, options)` synchronously
-  - [ ] Results rendered directly in the response (no persistence needed)
-- [ ] **Detail page displays summary + tags**
-  - [ ] Generated title/description block
-  - [ ] Tag chips
-  - [ ] Clear "Level 1: Sync call" label in UI
-- [ ] **Optional: show inputs used**
-  - [ ] Display storyboard preview and transcript excerpt in a "How it was made" disclosure
+- [x] **Implement "Generate summary" path**
+  - [x] Server action calls `getSummaryAndTags(assetId, options)` synchronously
+  - [x] Results rendered directly in the response (no persistence needed)
+- [x] **Detail page displays summary + tags**
+  - [x] Generated title/description block
+  - [x] Tag chips
+- [x] **Optional: show inputs used**
+  - [x] Display storyboard preview and transcript excerpt in a "How it was made" disclosure
 
 ### 4) Level 2: Basic async workflows (Vercel Workflow infra)
 

@@ -280,14 +280,15 @@ This framing communicates the key insight: `@mux/ai` isn't just AI responses—i
 
 ---
 
-## Persistence approach (zero-database)
+## Persistence approach (Supabase + Mux)
 
-This demo intentionally avoids a database layer to keep the architecture simple and focused on the `@mux/ai` + Vercel Workflow integration patterns.
+While Mux remains the source of truth for video assets and tracks, this demo uses **Supabase** as a persisted layer for asset metadata. This approach offloads overhead from Mux's API while mitigating potential rate limits during high traffic scenarios.
 
 ### What gets persisted where
 
 | Data                          | Where                | Why                                                                      |
 | ----------------------------- | -------------------- | ------------------------------------------------------------------------ |
+| **Asset metadata**            | Supabase             | Reduces Mux API calls; mitigates rate limits during high traffic         |
 | **Translated caption tracks** | Mux asset            | `translateCaptions` with `uploadToMux: true` attaches the track directly |
 | **Dubbed audio tracks**       | Mux asset            | `translateAudio` with `uploadToMux: true` attaches the track directly    |
 | **Rendered clips**            | S3 storage           | Level 3 workflow uploads MP4 + poster to configured S3 bucket            |
@@ -296,6 +297,7 @@ This demo intentionally avoids a database layer to keep the architecture simple 
 ### Why this works
 
 - **Mux is the source of truth**: The asset's `tracks` array already contains all the information needed to populate caption/audio selectors in the player.
+- **Supabase offloads Mux API**: Asset metadata is persisted in Supabase to reduce direct Mux API calls, improving response times and avoiding rate limits when traffic spikes.
 - **No sync issues**: Since tracks are attached to the asset, there's no risk of our database getting out of sync with Mux.
 - **localStorage is sufficient for progress**: Workflow status only needs to survive page refreshes within a single browser session. Cross-device sync isn't needed for a demo.
 
@@ -303,7 +305,7 @@ This demo intentionally avoids a database layer to keep the architecture simple 
 
 - Workflow progress is browser-local (won't sync across devices/tabs)
 - No server-side audit log of workflow runs
-- Acceptable for a demo; production apps would add persistence as needed
+- Supabase data may become stale; implement TTL or webhook-based invalidation for production
 
 ---
 

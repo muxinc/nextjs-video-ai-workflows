@@ -3,8 +3,11 @@ import Link from "next/link";
 
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
-import { listAssets } from "@/app/lib/mux";
-import type { MuxAsset } from "@/app/lib/mux";
+import { getPlaybackIdForAsset } from "@/app/lib/mux";
+import { createClient } from "@/app/lib/supabase/server";
+import type { Tables } from "@/app/lib/supabase/types";
+
+type Video = Tables<"videos">;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -17,7 +20,8 @@ const ITEMS_PER_PAGE = 6;
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface TalkCardProps {
-  asset: MuxAsset;
+  video: Video;
+  playbackId: string | null;
 }
 
 interface PaginationProps {
@@ -34,67 +38,70 @@ interface MediaPageProps {
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────────────────
 
-function getPlaybackId(asset: MuxAsset): string | undefined {
-  const playbackIds = asset.playback_ids || [];
-  const publicId = playbackIds.find(pid => pid.policy === "public");
-  return publicId?.id || playbackIds[0]?.id;
-}
-
 function getThumbnailUrl(playbackId: string): string {
   return `https://image.mux.com/${playbackId}/thumbnail.webp?width=640&height=360&fit_mode=smartcrop`;
 }
 
-function getAssetTitle(asset: MuxAsset): string {
-  // Prefer meta.title if set on the asset
-  const metaTitle = asset.meta?.title;
-  if (metaTitle) {
-    return metaTitle;
+function getVideoTitle(video: Video): string {
+  if (video.title) {
+    return video.title;
   }
-
-  // Fall back to passthrough metadata
-  const passthrough = asset.passthrough;
-  if (passthrough) {
-    try {
-      const parsed = JSON.parse(passthrough);
-      if (parsed.title)
-        return parsed.title;
-    } catch {
-      // passthrough is a plain string, use it as title
-      if (passthrough.length > 0 && passthrough.length < 200) {
-        return passthrough;
-      }
-    }
-  }
-
-  return `Talk ${asset.id.slice(0, 8)}`;
+  return `Talk ${video.id.slice(0, 8)}`;
 }
 
-function getAssetSlug(asset: MuxAsset): string {
-  // Use the asset ID as the slug for now
-  // TODO: Replace with proper slug from database when available
-  return asset.id;
+function getVideoSlug(video: Video): string {
+  // Use the mux_asset_id as the slug for URL routing
+  return video.mux_asset_id;
 }
 
-function formatDuration(seconds?: number): string {
-  if (!seconds)
-    return "";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
+/**
+ * Generates an array of page numbers with ellipses for smart pagination display.
+ * Shows first page, last page, and a window around the current page.
+ */
+function getPageNumbers(currentPage: number, totalPages: number): (number | "...")[] {
+  const delta = 2; // Number of pages to show on each side of current page
+  const pages: (number | "...")[] = [];
+
+  // Always show first page
+  pages.push(1);
+
+  // Calculate the range around current page
+  const rangeStart = Math.max(2, currentPage - delta);
+  const rangeEnd = Math.min(totalPages - 1, currentPage + delta);
+
+  // Add ellipsis after first page if needed
+  if (rangeStart > 2) {
+    pages.push("...");
+  }
+
+  // Add pages in the range
+  for (let i = rangeStart; i <= rangeEnd; i++) {
+    pages.push(i);
+  }
+
+  // Add ellipsis before last page if needed
+  if (rangeEnd < totalPages - 1) {
+    pages.push("...");
+  }
+
+  // Always show last page (if more than 1 page)
+  if (totalPages > 1) {
+    pages.push(totalPages);
+  }
+
+  return pages;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Components
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TalkCard({ asset }: TalkCardProps) {
-  const playbackId = getPlaybackId(asset);
-  const title = getAssetTitle(asset);
-  const slug = getAssetSlug(asset);
-  const duration = formatDuration(asset.duration);
+function TalkCard({ video, playbackId }: TalkCardProps) {
+  const title = getVideoTitle(video);
+  const slug = getVideoSlug(video);
 
-  // TODO: Add AI-generated tags from Level 1 when available
-  const tags: string[] = [];
+  // Use AI-generated topics if available
+  const topics: string[] = video.topics ?? [];
 
   return (
     <Link href={`/media/${slug}`} className="group block">
@@ -116,15 +123,6 @@ function TalkCard({ asset }: TalkCardProps) {
                   <span className="text-foreground-muted">No preview</span>
                 </div>
               )}
-          {/* Duration badge */}
-          {duration && (
-            <div
-              className="absolute bottom-2 right-2 bg-background-dark/90 px-2 py-1 text-xs font-bold text-white"
-              style={{ fontFamily: "var(--font-space-mono)" }}
-            >
-              {duration}
-            </div>
-          )}
         </div>
 
         {/* Content */}
@@ -134,15 +132,15 @@ function TalkCard({ asset }: TalkCardProps) {
             {title}
           </h3>
 
-          {/* Tags (when AI-generated) */}
-          {tags.length > 0 && (
+          {/* Topics (AI-generated) */}
+          {topics.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {tags.slice(0, 3).map(tag => (
+              {topics.slice(0, 3).map(topic => (
                 <span
-                  key={tag}
+                  key={topic}
                   className="border border-border bg-surface-elevated px-2 py-0.5 text-xs text-foreground-muted"
                 >
-                  {tag}
+                  {topic}
                 </span>
               ))}
             </div>
@@ -232,24 +230,37 @@ function Pagination({ currentPage, totalPages, totalItems }: PaginationProps) {
                 </span>
               )}
 
-          {/* Page numbers */}
+          {/* Page numbers with smart truncation */}
           <div
             className="flex items-center gap-1 px-4 text-sm"
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-              <Link
-                key={page}
-                href={`/media?page=${page}`}
-                className={`flex h-10 w-10 items-center justify-center border-2 border-border transition-colors ${
-                  page === currentPage ?
-                    "bg-foreground text-surface" :
-                    "bg-surface hover:bg-surface-elevated"
-                }`}
-              >
-                {page}
-              </Link>
-            ))}
+            {getPageNumbers(currentPage, totalPages).map((page, idx) => {
+              // Use position-based key: ellipsis can only appear in 2 spots (after first, before last)
+              const key = page === "..." ? `ellipsis-${idx < 3 ? "start" : "end"}` : `page-${page}`;
+              return page === "..." ?
+                  (
+                    <span
+                      key={key}
+                      className="flex h-10 w-10 items-center justify-center text-foreground-muted"
+                    >
+                      …
+                    </span>
+                  ) :
+                  (
+                    <Link
+                      key={key}
+                      href={`/media?page=${page}`}
+                      className={`flex h-10 w-10 items-center justify-center border-2 border-border transition-colors ${
+                        page === currentPage ?
+                          "bg-foreground text-surface" :
+                          "bg-surface hover:bg-surface-elevated"
+                      }`}
+                    >
+                      {page}
+                    </Link>
+                  );
+            })}
           </div>
 
           {/* Next button */}
@@ -320,18 +331,40 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
   const params = await searchParams;
   const currentPage = Math.max(1, Number.parseInt(params.page || "1", 10) || 1);
 
-  // Fetch assets from Mux - only show ready assets
-  const assetsResponse = await listAssets();
-  const allAssets = assetsResponse.data?.filter(asset => asset.status === "ready") || [];
+  // Calculate range for server-side pagination
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE - 1;
 
-  // Calculate pagination
-  const totalItems = allAssets.length;
+  // Fetch paginated videos from Supabase with total count
+  const supabase = await createClient();
+  const { data: paginatedVideos, count } = await supabase
+    .from("videos")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: true })
+    .range(startIndex, endIndex);
+
+  const videos = paginatedVideos ?? [];
+  const totalItems = count ?? 0;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
   const validPage = Math.min(currentPage, Math.max(1, totalPages));
 
-  // Get assets for current page
-  const startIndex = (validPage - 1) * ITEMS_PER_PAGE;
-  const paginatedAssets = allAssets.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  // Fetch playback IDs from Mux for current page videos only (in parallel)
+  const playbackResults = await Promise.all(
+    videos.map(async (video) => {
+      try {
+        const result = await getPlaybackIdForAsset(video.mux_asset_id);
+        return result.playbackId;
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  // Create a map of mux_asset_id -> playbackId for easy lookup
+  const playbackIdMap = new Map<string, string | null>();
+  videos.forEach((video, index) => {
+    playbackIdMap.set(video.mux_asset_id, playbackResults[index]);
+  });
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -353,13 +386,17 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
             </p>
           </div>
 
-          {/* Asset Grid */}
-          {paginatedAssets.length > 0 ?
+          {/* Video Grid */}
+          {videos.length > 0 ?
               (
                 <>
                   <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                    {paginatedAssets.map(asset => (
-                      <TalkCard key={asset.id} asset={asset} />
+                    {videos.map(video => (
+                      <TalkCard
+                        key={video.id}
+                        video={video}
+                        playbackId={playbackIdMap.get(video.mux_asset_id) ?? null}
+                      />
                     ))}
                   </div>
 
