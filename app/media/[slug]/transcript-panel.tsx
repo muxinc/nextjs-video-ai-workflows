@@ -20,6 +20,7 @@ interface TranscriptPanelProps {
   currentTime?: number;
   onSeek?: (time: number) => void;
   muxAssetId?: string;
+  title?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ function formatTime(seconds: number): string {
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: TranscriptPanelProps) {
+export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: TranscriptPanelProps) {
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [scrollDirection, setScrollDirection] = useState<"up" | "down">("up");
   const [searchQuery, setSearchQuery] = useState("");
@@ -302,12 +303,12 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
     <div className="card-brutal relative flex h-full flex-col overflow-hidden">
       {/* Header */}
       <div className="flex shrink-0 flex-col gap-3 border-b-3 border-border bg-surface-elevated px-5 py-4">
-        <span
-          className="text-lg font-bold"
+        <h2
+          className="text-lg font-extrabold uppercase leading-tight tracking-tight"
           style={{ fontFamily: "var(--font-syne)" }}
         >
-          Transcript
-        </span>
+          {title || "Transcript"}
+        </h2>
 
         {/* Search input */}
         {muxAssetId && (
@@ -395,11 +396,11 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
         )}
       </div>
 
-      {/* Transcript content */}
+      {/* Transcript content - shows ~3 cues */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="relative max-h-80 overflow-y-auto bg-surface lg:max-h-96"
+        className="relative max-h-[240px] overflow-y-auto bg-surface"
       >
         <div className="divide-y divide-border/30">
           {cues.map(cue => (
