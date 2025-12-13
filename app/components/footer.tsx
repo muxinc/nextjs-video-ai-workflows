@@ -53,7 +53,7 @@ export function Footer({ variant = "minimal" }: FooterProps) {
             </a>
             {/* GitHub Logo */}
             <a
-              href="https://github.com/muxinc/nextjs-try-workflows"
+              href="https://github.com/muxinc/nextjs-video-ai-workflows"
               target="_blank"
               rel="noreferrer"
               aria-label="GitHub repository"

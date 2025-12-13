@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { Footer } from "@/app/components/footer";
@@ -6,6 +5,7 @@ import { Header } from "@/app/components/header";
 import { getPlaybackIdForAsset } from "@/app/lib/mux";
 import { createClient } from "@/app/lib/supabase/server";
 import type { Tables } from "@/app/lib/supabase/types";
+import { TalkCard } from "@/app/media/talk-card";
 
 type Video = Tables<"videos">;
 
@@ -18,11 +18,6 @@ const ITEMS_PER_PAGE = 6;
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
-
-interface TalkCardProps {
-  video: Video;
-  playbackId: string | null;
-}
 
 interface PaginationProps {
   currentPage: number;
@@ -38,20 +33,11 @@ interface MediaPageProps {
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────────────────
 
-function getThumbnailUrl(playbackId: string): string {
-  return `https://image.mux.com/${playbackId}/thumbnail.webp?width=640&height=360&fit_mode=smartcrop`;
-}
-
 function getVideoTitle(video: Video): string {
   if (video.title) {
     return video.title;
   }
   return `Talk ${video.id.slice(0, 8)}`;
-}
-
-function getVideoSlug(video: Video): string {
-  // Use the mux_asset_id as the slug for URL routing
-  return video.mux_asset_id;
 }
 
 /**
@@ -95,78 +81,6 @@ function getPageNumbers(currentPage: number, totalPages: number): (number | "...
 // ─────────────────────────────────────────────────────────────────────────────
 // Components
 // ─────────────────────────────────────────────────────────────────────────────
-
-function TalkCard({ video, playbackId }: TalkCardProps) {
-  const title = getVideoTitle(video);
-  const slug = getVideoSlug(video);
-
-  // Use AI-generated topics if available
-  const topics: string[] = video.topics ?? [];
-
-  return (
-    <Link href={`/media/${slug}`} className="group block">
-      <article className="card-brutal overflow-hidden transition-transform duration-100 group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:shadow-[8px_8px_0_var(--border)]">
-        {/* Thumbnail */}
-        <div className="relative aspect-video w-full overflow-hidden bg-background-dark">
-          {playbackId ?
-              (
-                <Image
-                  src={getThumbnailUrl(playbackId)}
-                  alt={title}
-                  fill
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  className="object-cover transition-transform duration-300 group-hover:scale-105"
-                />
-              ) :
-              (
-                <div className="flex h-full items-center justify-center">
-                  <span className="text-foreground-muted">No preview</span>
-                </div>
-              )}
-        </div>
-
-        {/* Content */}
-        <div className="flex flex-col gap-3 p-5">
-          {/* Title */}
-          <h3 className="line-clamp-2 text-lg font-bold leading-tight group-hover:text-accent">
-            {title}
-          </h3>
-
-          {/* Topics (AI-generated) */}
-          {topics.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {topics.slice(0, 3).map(topic => (
-                <span
-                  key={topic}
-                  className="border border-border bg-surface-elevated px-2 py-0.5 text-xs text-foreground-muted"
-                >
-                  {topic}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* View CTA */}
-          <div
-            className="mt-2 flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-foreground-muted transition-colors group-hover:text-accent"
-            style={{ fontFamily: "var(--font-space-mono)" }}
-          >
-            View talk
-            <svg
-              className="h-3 w-3 transition-transform group-hover:translate-x-1"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={3}
-            >
-              <path strokeLinecap="square" strokeLinejoin="miter" d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </div>
-      </article>
-    </Link>
-  );
-}
 
 function Pagination({ currentPage, totalPages, totalItems }: PaginationProps) {
   const startItem = (currentPage - 1) * ITEMS_PER_PAGE + 1;
@@ -394,8 +308,10 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
                     {videos.map(video => (
                       <TalkCard
                         key={video.id}
-                        video={video}
+                        slug={video.mux_asset_id}
+                        title={getVideoTitle(video)}
                         playbackId={playbackIdMap.get(video.mux_asset_id) ?? null}
+                        topics={video.topics ?? []}
                       />
                     ))}
                   </div>

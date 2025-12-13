@@ -332,14 +332,14 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, tit
                     setSemanticHighlightedCueId(null);
                   }}
                   placeholder="Search transcript..."
-                  className="w-full border-2 border-border bg-surface px-3 py-1.5 text-sm placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full border-2 border-border bg-surface px-3 py-2 text-base placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent sm:py-1.5 sm:text-sm"
                   style={{ fontFamily: "var(--font-space-mono)" }}
                 />
               </motion.div>
               <motion.button
                 type="submit"
                 disabled={isSearching || !normalizedQuery}
-                className="border-2 border-border bg-accent px-3 py-1.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                className="border-2 border-border bg-accent px-3 py-2 text-base font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:py-1.5 sm:text-sm"
                 aria-label="Find next"
                 title="Find next"
                 whileHover={{ scale: 1.05, boxShadow: "2px 2px 0 var(--border)" }}
@@ -386,7 +386,7 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, tit
                   <motion.button
                     type="button"
                     onClick={() => setSearchQuery("")}
-                    className="border-2 border-border bg-surface px-3 py-1.5 text-sm font-bold"
+                    className="border-2 border-border bg-surface px-3 py-2 text-base font-bold sm:py-1.5 sm:text-sm"
                     aria-label="Clear search"
                     title="Clear search"
                     initial={{ opacity: 0, scale: 0.9 }}

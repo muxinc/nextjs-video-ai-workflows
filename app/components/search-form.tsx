@@ -16,22 +16,22 @@ export function SearchForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="relative w-full max-w-md">
+    <form onSubmit={handleSubmit} className="relative w-full">
       <input
         type="text"
         value={query}
         onChange={e => setQuery(e.target.value)}
         placeholder="Search videos..."
-        className="w-full border-2 border-border bg-surface px-4 py-2 pr-10 text-sm outline-none transition-all placeholder:text-foreground-muted focus:border-foreground focus:shadow-[3px_3px_0_var(--border)]"
+        className="w-full border-3 border-border bg-surface px-5 py-3 pr-12 text-base outline-none shadow-[4px_4px_0_var(--border)] transition-all placeholder:text-foreground-muted focus:shadow-[6px_6px_0_var(--border)] sm:text-sm"
         style={{ fontFamily: "var(--font-space-mono)" }}
       />
       <button
         type="submit"
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-foreground-muted transition-colors hover:text-foreground"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted transition-colors hover:text-foreground"
         aria-label="Search"
       >
         <svg
-          className="h-4 w-4"
+          className="h-5 w-5"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
