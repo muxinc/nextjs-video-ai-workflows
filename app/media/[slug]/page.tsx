@@ -230,6 +230,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
           <div className="mb-8">
             <MediaPlayerWithTranscript
               playbackId={playbackId}
+              muxAssetId={video.mux_asset_id}
               title={title}
               transcriptCues={transcriptCues}
               accentColor="#ff6101"
