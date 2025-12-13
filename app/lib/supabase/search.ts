@@ -126,4 +126,3 @@ export async function searchVideoChunks(
 
   return enrichedChunks;
 }
-
