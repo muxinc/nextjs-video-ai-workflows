@@ -20,6 +20,7 @@ interface TranscriptCue {
 
 interface MediaPlayerWithTranscriptProps {
   playbackId: string;
+  muxAssetId: string;
   title: string;
   transcriptCues: TranscriptCue[];
   accentColor?: string;
@@ -31,6 +32,7 @@ interface MediaPlayerWithTranscriptProps {
 
 export function MediaPlayerWithTranscript({
   playbackId,
+  muxAssetId,
   title,
   transcriptCues,
   accentColor = "#ff6101",
@@ -79,6 +81,7 @@ export function MediaPlayerWithTranscript({
           cues={transcriptCues}
           currentTime={currentTime}
           onSeek={handleSeek}
+          muxAssetId={muxAssetId}
         />
       )}
     </div>

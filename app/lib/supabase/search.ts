@@ -29,6 +29,14 @@ export interface VideoChunkResult extends RawVideoChunkResult {
   end_time: number | null;
 }
 
+/** Result from searching within a specific video's transcript */
+export interface ChunkWithinVideoResult {
+  chunkId: string;
+  chunkText: string;
+  startTime: number;
+  similarityScore: number;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Search Function
 // ─────────────────────────────────────────────────────────────────────────────
@@ -129,4 +137,66 @@ export async function searchVideoChunks(
   });
 
   return enrichedChunks;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Search Within Video Function
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Performs semantic search within a specific video's transcript chunks.
+ * Returns the best matching chunk with its start time for transcript scrolling.
+ *
+ * @param query - The search query text
+ * @param muxAssetId - The Mux asset ID to search within
+ * @returns The best matching chunk result, or null if no matches found
+ */
+export async function searchChunksWithinVideo(
+  query: string,
+  muxAssetId: string,
+): Promise<ChunkWithinVideoResult | null> {
+  if (!query.trim()) {
+    return null;
+  }
+
+  // Generate embedding for the search query
+  const { embedding } = await embed({
+    model: openai.textEmbeddingModel("text-embedding-3-small"),
+    value: query,
+  });
+
+  // Create Supabase client
+  const supabase = await createClient();
+
+  // Perform vector similarity search using match_chunks_within_video RPC
+  const { data: results, error } = await supabase.rpc("match_chunks_within_video", {
+    query_embedding: JSON.stringify(embedding),
+    similarity_threshold: 0.0,
+    match_count: 50, // Get more results so we can filter by asset
+  });
+
+  if (error) {
+    console.error("Error searching chunks within video:", error);
+    throw error;
+  }
+
+  if (!results || results.length === 0) {
+    return null;
+  }
+
+  // Filter for the specific Mux asset and get the best match
+  const matchingResult = results.find(
+    (r: { mux_asset_id: string }) => r.mux_asset_id === muxAssetId,
+  );
+
+  if (!matchingResult) {
+    return null;
+  }
+
+  return {
+    chunkId: matchingResult.best_chunk_id,
+    chunkText: matchingResult.best_chunk_text,
+    startTime: matchingResult.best_chunk_start_time,
+    similarityScore: matchingResult.similarity_score,
+  };
 }
