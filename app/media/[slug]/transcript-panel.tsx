@@ -210,17 +210,29 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
   }, [cues]);
 
   const scrollToCue = useCallback((targetCue: TranscriptCue) => {
+    if (!containerRef.current)
+      return;
+
+    const cueElement = cueRefs.current.get(targetCue.id);
+    if (!cueElement)
+      return;
+
     // Behave like manual scrolling: pause auto-follow and show the jump-to-current CTA
     setShowJumpButton(true);
     isAutoScrollingRef.current = true;
 
-    const cueElement = cueRefs.current.get(targetCue.id);
-    if (cueElement) {
-      cueElement.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }
+    const container = containerRef.current;
+
+    // Calculate scroll position to center the cue within the container (avoids page scroll jacking)
+    const containerHeight = container.clientHeight;
+    const cueOffsetTop = cueElement.offsetTop;
+    const cueHeight = cueElement.offsetHeight;
+    const targetScrollTop = cueOffsetTop - (containerHeight / 2) + (cueHeight / 2);
+
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: "smooth",
+    });
 
     // Reset auto-scrolling flag
     if (scrollTimeoutRef.current) {
@@ -250,9 +262,10 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId }: T
   const handleNextHit = useCallback(() => {
     if (hitCueIds.length === 0)
       return;
-    const nextIndex = safeActiveHitIndex >= hitCueIds.length - 1 ? 0 : safeActiveHitIndex + 1;
+    // Check raw activeHitIndex for initial state (-1 means no hit selected yet)
+    const nextIndex = activeHitIndex === -1 || safeActiveHitIndex >= hitCueIds.length - 1 ? 0 : safeActiveHitIndex + 1;
     goToHitIndex(nextIndex);
-  }, [safeActiveHitIndex, goToHitIndex, hitCueIds.length]);
+  }, [activeHitIndex, safeActiveHitIndex, goToHitIndex, hitCueIds.length]);
 
   // Handle transcript search
   const handleSearch = useCallback((e: React.FormEvent) => {
