@@ -564,6 +564,8 @@ This ordering builds the app layer-by-layer so the teaching progression is alway
 - [x] **Define status types consistently**
   - [x] `WorkflowStatus`: `"queued" | "running" | "completed" | "failed"`
 
+**Resumable UX goal:** when a workflow is started, the client persists the run ID + status in `localStorage`, and relevant UI surfaces rehydrate/poll on load. This lets users refresh or navigate away and back and still see an in-flight workflow continue asynchronously.
+
 ### 2) Read-only app surfaces (browse + detail)
 
 - [x] **UI: `/media` index**

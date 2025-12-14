@@ -217,6 +217,13 @@ async function doTranslation(assetId: string, targetLang: string) {
 }
 ```
 
+### Resumability: what users should experience
+
+This demo intentionally showcases **durable workflows + resumable UI**:
+
+- Workflows run asynchronously via `start()` and continue even if the user refreshes or navigates away.
+- The UI persists in-flight runs in browser `localStorage` (see `app/lib/workflow-state.ts`) and rehydrates/polls on page load so users can leave and come back and still see progress.
+
 ### Layer 3: Composing with connectors
 
 Orchestrate multiple primitives, workflows, and external tools:

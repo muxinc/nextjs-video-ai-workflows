@@ -10,6 +10,14 @@ A Next.js starter template demonstrating how to build **durable video AI pipelin
 | **2. Workflows**  | Run durably via Vercel Workflows | `translateCaptions`, `translateAudio` — retries, progress tracking |
 | **3. Connectors** | Compose with external tools      | Clip creation with Remotion — multi-step pipelines                 |
 
+## Resumable workflows (try it)
+
+This project showcases **resumable, durable workflows out of the box**:
+
+- Start a workflow (captions, dubbing, or summary).
+- Refresh the page, or navigate away and back.
+- You should see the workflow **still running asynchronously**, with status rehydrated from browser `localStorage`.
+
 ## Quick Start
 
 ```bash
