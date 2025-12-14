@@ -61,6 +61,35 @@ npx supabase gen types typescript \
   > app/lib/supabase/types.ts
 ```
 
+## Media Detail Page Structure
+
+The media detail page (`/media/[slug]`) is organized into co-located feature folders:
+
+```
+app/media/[slug]/
+├── media-content.tsx
+├── page.tsx
+├── localization/
+│   ├── actions.ts      (start/poll caption & audio translation workflows)
+│   ├── constants.ts
+│   └── ui.tsx
+├── player/
+│   ├── context.ts
+│   ├── provider.tsx
+│   ├── ui.tsx
+│   └── use-player.ts
+├── summarize-and-tag/
+│   ├── actions.ts      (start/poll summary generation workflow)
+│   └── ui.tsx
+├── transcript/
+│   ├── actions.ts      (semantic search within video transcript)
+│   ├── helpers.ts
+│   └── ui.tsx
+└── workflows-panel/
+    ├── helpers.ts
+    └── ui.tsx          (includes StatusBadge, StepProgress, etc.)
+```
+
 ## Learn More
 
 - [`context/application-explained.md`](./context/application-explained.md) — what the app does and why

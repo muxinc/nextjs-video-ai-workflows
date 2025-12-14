@@ -11,10 +11,10 @@ import {
   markWorkflowRunning,
   startWorkflow as persistWorkflowStart,
 } from "@/app/lib/workflow-state";
-import { mergeSteps } from "@/app/media/[slug]/workflow-action-utils";
+import { mergeSteps } from "@/app/media/[slug]/workflows-panel/helpers";
 import type { SummaryStepId } from "@/workflows/get-summary-and-tags";
 
-import { StatusBadge, StepProgress } from "../workflow-components";
+import { StatusBadge, StepProgress } from "../workflows-panel/ui";
 
 import type { SummaryStatus, SummaryTone } from "./actions";
 import { pollSummaryWorkflowAction, startSummaryWorkflowAction } from "./actions";

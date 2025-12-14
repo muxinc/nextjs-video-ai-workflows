@@ -12,10 +12,10 @@ import {
   markWorkflowRunning,
   startWorkflow as persistWorkflowStart,
 } from "@/app/lib/workflow-state";
-import { mergeSteps } from "@/app/media/[slug]/workflow-action-utils";
+import { mergeSteps } from "@/app/media/[slug]/workflows-panel/helpers";
 
 import { usePlayer } from "../player/use-player";
-import { StatusBadge, StepProgress } from "../workflow-components";
+import { StatusBadge, StepProgress } from "../workflows-panel/ui";
 
 import {
   isAudioTrackReadyAction,

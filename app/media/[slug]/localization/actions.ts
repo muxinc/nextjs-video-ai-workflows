@@ -6,7 +6,7 @@ import { findAudioTrack, findTextTrack, getAsset } from "@/app/lib/mux";
 import { translateAudioWorkflow } from "@/workflows/translate-audio";
 import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 
-import { mapWorkflowStatus, readProgressEvents } from "../workflow-action-utils";
+import { mapWorkflowStatus, readProgressEvents } from "../workflows-panel/helpers";
 
 import type { AudioStepId, CaptionStepId, TranslationStatus } from "./constants";
 

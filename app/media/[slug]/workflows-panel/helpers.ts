@@ -2,7 +2,7 @@
 // Shared utilities for workflow server actions
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { WorkflowStatus } from "../types";
+import type { WorkflowStatus } from "../../types";
 
 /**
  * Maps Vercel Workflow status strings to our UI-friendly WorkflowStatus type.
