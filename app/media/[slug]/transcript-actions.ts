@@ -1,7 +1,6 @@
 "use server";
 
 import { searchChunksWithinVideo } from "@/app/lib/supabase/search";
-
 import type { ChunkWithinVideoResult } from "@/app/lib/supabase/search";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,4 +17,3 @@ export async function searchTranscript(
 ): Promise<ChunkWithinVideoResult | null> {
   return searchChunksWithinVideo(query, muxAssetId);
 }
-

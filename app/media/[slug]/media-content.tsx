@@ -1,7 +1,7 @@
 "use client";
 
 import { Level1SummaryAndTags } from "./level-1-summary";
-import { PlayerProvider } from "./player-context";
+import { PlayerProvider } from "./player-context-provider";
 import { SyncedTranscript } from "./synced-transcript";
 import { VideoPlayer } from "./video-player";
 

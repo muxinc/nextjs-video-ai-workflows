@@ -6,15 +6,15 @@ Guidance for AI coding assistants working on this project.
 
 ## What this project is
 
-A **reference architecture** demonstrating how to integrate `@mux/ai` with **Vercel Workflows** to build video intelligence pipelines in Next.js.
+A **reference architecture** demonstrating how to integrate `@mux/ai` with **Vercel Workflows** to ship video intelligence that holds up at scale.
 
-The app ("Demuxed Library") uses real Mux assets to teach three integration levels:
+The app ("Demuxed Library") uses real Mux assets to teach three integration layers:
 
-| Level | Pattern              | Example                                                                     |
-| ----- | -------------------- | --------------------------------------------------------------------------- |
-| **1** | Sync call            | `getSummaryAndTags()` — direct function invocation                          |
-| **2** | Basic async workflow | `translateCaptions`, `translateAudio` — single primitive in Vercel Workflow |
-| **3** | Custom workflow      | Clip creation — multi-step orchestration with Remotion                      |
+| Layer | Pattern    | Example                                                       |
+| ----- | ---------- | ------------------------------------------------------------- |
+| **1** | Primitives | `getSummaryAndTags()` — call primitives directly              |
+| **2** | Workflows  | `translateCaptions`, `translateAudio` — run workflows durably |
+| **3** | Connectors | Clip creation — compose with external tools like Remotion     |
 
 **Read the full context:**
 
@@ -193,9 +193,9 @@ Key points:
 - Pass workflow arguments as an array (second argument to `start`)
 - Workflows can be triggered from route handlers, server actions, or any server-side code
 
-### Level 2: Single-primitive workflows
+### Layer 2: Running workflows durably
 
-Wrap one `@mux/ai` function in a workflow:
+Wrap one `@mux/ai` function in a workflow for retries, progress tracking, and resumable execution:
 
 ```typescript
 export async function translateCaptionsWorkflow(assetId: string, targetLang: string) {
@@ -211,9 +211,9 @@ async function doTranslation(assetId: string, targetLang: string) {
 }
 ```
 
-### Level 3: Multi-step custom workflows
+### Layer 3: Composing with connectors
 
-Orchestrate multiple primitives + external tools:
+Orchestrate multiple primitives, workflows, and external tools:
 
 ```typescript
 export async function createClipWorkflow(input: ClipInput) {
@@ -231,7 +231,7 @@ export async function createClipWorkflow(input: ClipInput) {
 
 ## Remotion usage
 
-Remotion is used **only in Level 3** (custom workflow) to demonstrate composing `@mux/ai` with external tools.
+Remotion is used **only in Layer 3** (connectors) to demonstrate composing `@mux/ai` with external tools.
 
 ### Two phases
 
@@ -249,10 +249,10 @@ Remotion is used **only in Level 3** (custom workflow) to demonstrate composing 
 From `context/design-explained.md`:
 
 - **Minimal, high-contrast, brutalist**: thick black borders, sharp corners, hard shadows
-- **Level indicators**: badge each section with "SYNC CALL", "ASYNC WORKFLOW", or "CUSTOM WORKFLOW"
+- **Layer indicators**: badge each section with "PRIMITIVES", "WORKFLOWS", or "CONNECTORS"
 - **Status callouts**: inline progress, not global toasts
-  - Level 2: single-step status (Queued → Running → Ready)
-  - Level 3: multi-step pipeline (✓ Translating → ● Rendering → ○ Uploading)
+  - Layer 2: single-step status (Queued → Running → Ready)
+  - Layer 3: multi-step pipeline (✓ Translating → ● Rendering → ○ Uploading)
 - **Responsive**: stack vertically on mobile, two-column on desktop
 
 ---
@@ -260,10 +260,10 @@ From `context/design-explained.md`:
 ## Key routes
 
 ```
-/                           # Landing — pitch the three levels
+/                           # Landing — pitch the three layers
 /media                      # Index — browse talks
-/media/[slug]               # Detail — all three levels on one asset
-/media/[slug]/clips/new     # Clip creation — Level 3 showcase
+/media/[slug]               # Detail — all three layers on one asset
+/media/[slug]/clips/new     # Clip creation — Layer 3 showcase
 /media/[slug]/clips/[id]    # Clip detail — rendered output
 ```
 

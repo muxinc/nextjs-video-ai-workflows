@@ -3,15 +3,15 @@ import Link from "next/link";
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
 
-function LevelCard({
-  level,
+function LayerCard({
+  layer,
   badge,
   badgeClass,
   title,
   description,
   example,
 }: {
-  level: string;
+  layer: string;
   badge: string;
   badgeClass: string;
   title: string;
@@ -26,7 +26,7 @@ function LevelCard({
             {badge}
           </span>
           <span className="text-[10px] font-bold tracking-[0.2em] text-foreground-muted">
-            {level}
+            {layer}
           </span>
         </div>
       </div>
@@ -101,7 +101,7 @@ export default function Home() {
                   >
                     vercel Workflow DevKit
                   </a>
-                  . Three integration levels. One consistent developer experience.
+                  . Three integration layers. One consistent developer experience.
                 </p>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -178,35 +178,35 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Three Level Cards */}
-          <section aria-labelledby="landing-levels">
+          {/* Three Layer Cards */}
+          <section aria-labelledby="landing-layers">
             <div
               className="section-header-brutal stripes-dark text-white"
-              id="landing-levels"
+              id="landing-layers"
               style={{ fontFamily: "var(--font-syne)" }}
             >
-              THREE INTEGRATION LEVELS
+              THREE INTEGRATION LAYERS
             </div>
 
             <div className="mt-6 grid gap-6 md:grid-cols-3">
-              <LevelCard
-                level="LEVEL 1"
+              <LayerCard
+                layer="LAYER 1"
                 badge="Primitives"
                 badgeClass="badge-sync"
                 title="Call primitives directly"
                 description="Low-level building blocks for video intelligence, from fetching transcripts to generating storyboards you can compose into pipelines later."
                 example="fetchTranscriptForAsset"
               />
-              <LevelCard
-                level="LEVEL 2"
+              <LayerCard
+                layer="LAYER 2"
                 badge="Workflows"
                 badgeClass="badge-async"
                 title="Run workflows durably"
                 description="@mux/ai ships ready-made workflows for video intelligence. Run them on Vercel Workflows for retries, progress tracking, and resumable execution."
                 example="translateCaptions"
               />
-              <LevelCard
-                level="LEVEL 3"
+              <LayerCard
+                layer="LAYER 3"
                 badge="Connectors"
                 badgeClass="badge-custom"
                 title="Compose with connectors"

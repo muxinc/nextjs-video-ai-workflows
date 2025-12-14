@@ -155,43 +155,32 @@ body {
 
 /* Diagonal stripes pattern (orange) */
 .stripes-accent {
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--accent) 0px,
-    var(--accent) 8px,
-    #ff8534 8px,
-    #ff8534 16px
-  );
+  background: repeating-linear-gradient(-45deg, var(--accent) 0px, var(--accent) 8px, #ff8534 8px, #ff8534 16px);
 }
 
 /* Diagonal stripes pattern (dark/muted) */
 .stripes-dark {
-  background: repeating-linear-gradient(
-    -45deg,
-    #2d2d2d 0px,
-    #2d2d2d 8px,
-    #3d3d3d 8px,
-    #3d3d3d 16px
-  );
+  background: repeating-linear-gradient(-45deg, #2d2d2d 0px, #2d2d2d 8px, #3d3d3d 8px, #3d3d3d 16px);
 }
 
 /* Hatched pattern for coming soon sections */
 .hatched {
   background-color: var(--surface-elevated);
-  background-image: repeating-linear-gradient(
-    45deg,
-    transparent 0px,
-    transparent 10px,
-    rgba(0, 0, 0, 0.03) 10px,
-    rgba(0, 0, 0, 0.03) 20px
-  ),
-  repeating-linear-gradient(
-    -45deg,
-    transparent 0px,
-    transparent 10px,
-    rgba(0, 0, 0, 0.03) 10px,
-    rgba(0, 0, 0, 0.03) 20px
-  );
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent 0px,
+      transparent 10px,
+      rgba(0, 0, 0, 0.03) 10px,
+      rgba(0, 0, 0, 0.03) 20px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0px,
+      transparent 10px,
+      rgba(0, 0, 0, 0.03) 10px,
+      rgba(0, 0, 0, 0.03) 20px
+    );
 }
 
 /* Neo-brutalist section header */

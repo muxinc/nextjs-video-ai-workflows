@@ -1,43 +1,22 @@
 "use client";
 
-import { TranscriptPanel } from "./transcript-panel";
-import { usePlayer } from "./use-player";
+import { createContext } from "react";
+
+import type MuxPlayerElement from "@mux/mux-player";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface TranscriptCue {
-  id: string;
-  startTime: number;
-  endTime: number;
-  text: string;
-}
-
-interface SyncedTranscriptProps {
-  cues: TranscriptCue[];
-  muxAssetId: string;
-  title?: string;
+export interface PlayerContextValue {
+  currentTime: number;
+  setCurrentTime: (time: number) => void;
+  playerRef: React.RefObject<MuxPlayerElement | null>;
+  seekTo: (time: number) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Component
+// Context
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function SyncedTranscript({ cues, muxAssetId, title }: SyncedTranscriptProps) {
-  const { currentTime, seekTo } = usePlayer();
-
-  if (cues.length === 0) {
-    return null;
-  }
-
-  return (
-    <TranscriptPanel
-      cues={cues}
-      currentTime={currentTime}
-      onSeek={seekTo}
-      muxAssetId={muxAssetId}
-      title={title}
-    />
-  );
-}
+export const PlayerContext = createContext<PlayerContextValue | null>(null);
