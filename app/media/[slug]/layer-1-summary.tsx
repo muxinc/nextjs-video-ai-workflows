@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import type { SummaryStepId } from "@/workflows/get-summary-and-tags";
@@ -144,6 +145,8 @@ function ToneSelector({
 
 function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
   const [selectedTone, setSelectedTone] = useState<SummaryTone>("normal");
+  const [isMetadataCollapsed, setIsMetadataCollapsed] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   type SummaryResult = NonNullable<Awaited<ReturnType<typeof pollSummaryWorkflowAction>>["result"]>;
 
@@ -199,6 +202,7 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
     stopPolling();
     streamIndexRef.current = 0;
     setWorkflowState({ status: "starting", completedSteps: [] });
+    setIsMetadataCollapsed(false);
 
     startTransition(async () => {
       const result = await startSummaryWorkflowAction(assetId, selectedTone);
@@ -288,55 +292,82 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
       {isSuccess && (
         <div className="space-y-4">
           <div className="border-3 border-border bg-surface-elevated">
-            <div
-              className="border-b-2 border-border bg-surface px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-foreground-muted"
-              style={{ fontFamily: "var(--font-space-mono)" }}
-            >
-              GENERATED METADATA
+            <div className="flex items-center justify-between gap-3 border-b-2 border-border bg-surface px-4 py-2">
+              <div
+                className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground-muted"
+                style={{ fontFamily: "var(--font-space-mono)" }}
+              >
+                GENERATED METADATA
+              </div>
+
+              <button
+                type="button"
+                className="tone-btn"
+                onClick={() => setIsMetadataCollapsed(prev => !prev)}
+                aria-expanded={!isMetadataCollapsed}
+                style={{ fontFamily: "var(--font-space-mono)" }}
+              >
+                [
+                {isMetadataCollapsed ? "EXPAND" : "COLLAPSE"}
+                ]
+              </button>
             </div>
 
-            <div className="space-y-4 p-4">
-              <div>
-                <div
-                  className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                  style={{ fontFamily: "var(--font-space-mono)" }}
+            <AnimatePresence initial={false}>
+              {!isMetadataCollapsed && (
+                <motion.div
+                  key="generated-metadata"
+                  className="overflow-hidden"
+                  initial={shouldReduceMotion ? false : { height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut" }}
                 >
-                  Title
-                </div>
-                <div
-                  className="text-base font-bold"
-                  style={{ fontFamily: "var(--font-syne)" }}
-                >
-                  {workflowState.result?.title}
-                </div>
-              </div>
+                  <div className="space-y-4 p-4">
+                    <div>
+                      <div
+                        className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
+                        style={{ fontFamily: "var(--font-space-mono)" }}
+                      >
+                        Title
+                      </div>
+                      <div
+                        className="text-base font-bold"
+                        style={{ fontFamily: "var(--font-syne)" }}
+                      >
+                        {workflowState.result?.title}
+                      </div>
+                    </div>
 
-              <div>
-                <div
-                  className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                  style={{ fontFamily: "var(--font-space-mono)" }}
-                >
-                  Description
-                </div>
-                <p className="text-sm leading-relaxed text-foreground-muted">
-                  {workflowState.result?.description}
-                </p>
-              </div>
+                    <div>
+                      <div
+                        className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
+                        style={{ fontFamily: "var(--font-space-mono)" }}
+                      >
+                        Description
+                      </div>
+                      <p className="text-sm leading-relaxed text-foreground-muted">
+                        {workflowState.result?.description}
+                      </p>
+                    </div>
 
-              <div>
-                <div
-                  className="mb-2 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                  style={{ fontFamily: "var(--font-space-mono)" }}
-                >
-                  Tags
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(workflowState.result?.tags ?? []).map(tag => (
-                    <TagChip key={tag} tag={tag} />
-                  ))}
-                </div>
-              </div>
-            </div>
+                    <div>
+                      <div
+                        className="mb-2 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
+                        style={{ fontFamily: "var(--font-space-mono)" }}
+                      >
+                        Tags
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(workflowState.result?.tags ?? []).map(tag => (
+                          <TagChip key={tag} tag={tag} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       )}
