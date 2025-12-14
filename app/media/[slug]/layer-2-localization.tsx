@@ -439,11 +439,13 @@ export function Layer2Localization({ assetId }: Layer2LocalizationProps) {
     startAction: startAudioTranslationAction,
     pollAction: pollAudioTranslationAction,
     onCompleted: async () => {
-      await waitForMuxTrack(
+      const ready = await waitForMuxTrack(
         () => isAudioTrackReadyAction(assetId, selectedLang.code),
         AUDIO_TRACK_DELAYS,
       );
-      refreshPlayer();
+      if (ready) {
+        refreshPlayer();
+      }
     },
   });
 

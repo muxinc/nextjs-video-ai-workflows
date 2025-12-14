@@ -1,6 +1,7 @@
 import { getWritable } from "workflow";
 import { start } from "workflow/api";
 
+import { findAudioTrack, getAsset } from "@/app/lib/mux";
 import type { AudioStepId } from "@/app/media/[slug]/layer-2-constants";
 import { translateAudio } from "@mux/ai/workflows";
 
@@ -38,7 +39,7 @@ export async function translateAudioWorkflow(
     const result = await doTranslateAudio(progress, assetId, targetLang);
     completedSteps.push("generate");
 
-    await confirmUpload(progress, result);
+    await confirmUpload(progress, assetId, targetLang, result);
     completedSteps.push("upload");
 
     return {
@@ -63,6 +64,67 @@ export async function translateAudioWorkflow(
       error: message,
     };
   }
+}
+
+function getTrackIdFromResult(result: TranslateAudioResult): string | undefined {
+  const candidate = result as unknown as Record<string, unknown>;
+
+  const direct = candidate.trackId;
+  if (typeof direct === "string" && direct.length) {
+    return direct;
+  }
+
+  const muxTrackId = candidate.muxTrackId;
+  if (typeof muxTrackId === "string" && muxTrackId.length) {
+    return muxTrackId;
+  }
+
+  const nestedTrack = candidate.track;
+  if (nestedTrack && typeof nestedTrack === "object") {
+    const id = (nestedTrack as { id?: unknown }).id;
+    if (typeof id === "string" && id.length) {
+      return id;
+    }
+  }
+
+  const nestedMux = candidate.mux;
+  if (nestedMux && typeof nestedMux === "object") {
+    const id = (nestedMux as { trackId?: unknown }).trackId;
+    if (typeof id === "string" && id.length) {
+      return id;
+    }
+  }
+
+  return undefined;
+}
+
+async function waitForMuxAudioTrackReady(
+  assetId: string,
+  targetLang: string,
+  trackId?: string,
+): Promise<void> {
+  const startedAt = Date.now();
+  const timeoutMs = 10 * 60 * 1000;
+  let delayMs = 1000;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const asset = await getAsset(assetId);
+
+    const track = trackId ?
+        (asset.tracks || []).find(t => t.id === trackId) :
+        findAudioTrack(asset, targetLang);
+
+    if (track && track.status === "ready") {
+      return;
+    }
+
+    await sleepMs(delayMs);
+    delayMs = Math.min(Math.round(delayMs * 1.35), 15_000);
+  }
+
+  throw new Error(
+    `Dubbed audio uploaded but is still processing on Mux (lang: ${targetLang}). Please try again in a few minutes.`,
+  );
 }
 
 async function prepareAudio(
@@ -101,6 +163,8 @@ async function doTranslateAudio(
 
 async function confirmUpload(
   progress: WritableStream<AudioProgressEvent>,
+  assetId: string,
+  targetLang: string,
   result: TranslateAudioResult,
 ): Promise<void> {
   "use step";
@@ -108,7 +172,13 @@ async function confirmUpload(
   if (!result) {
     throw new Error("Audio dubbing completed but no result returned");
   }
-  await sleepMs(300);
+
+  // `@mux/ai` returns once the upload request is accepted, but the newly-attached
+  // audio track can take additional time to transition to `ready` on the asset.
+  // Keep the workflow in the "upload" step until the track is actually ready.
+  const trackId = getTrackIdFromResult(result);
+  await waitForMuxAudioTrackReady(assetId, targetLang, trackId);
+
   await writeToStream(progress, { type: "completed", step: "upload" });
   await closeStream(progress);
 }
