@@ -145,18 +145,20 @@ export async function searchVideoChunks(
 
 /**
  * Performs semantic search within a specific video's transcript chunks.
- * Returns the best matching chunk with its start time for transcript scrolling.
+ * Returns matching chunks with start times for transcript scrolling.
  *
  * @param query - The search query text
  * @param muxAssetId - The Mux asset ID to search within
- * @returns The best matching chunk result, or null if no matches found
+ * @param limit - Maximum number of results to return (default: 10)
+ * @returns Array of matching chunk results, empty if no matches found
  */
 export async function searchChunksWithinVideo(
   query: string,
   muxAssetId: string,
-): Promise<ChunkWithinVideoResult | null> {
+  limit: number = 10,
+): Promise<ChunkWithinVideoResult[]> {
   if (!query.trim()) {
-    return null;
+    return [];
   }
 
   // Generate embedding for the search query
@@ -168,11 +170,12 @@ export async function searchChunksWithinVideo(
   // Create Supabase client
   const supabase = await createClient();
 
-  // Perform vector similarity search using match_chunks_within_video RPC
+  // Perform vector similarity search within the specific video
   const { data: results, error } = await supabase.rpc("match_chunks_within_video", {
     query_embedding: JSON.stringify(embedding),
-    similarity_threshold: 0.0,
-    match_count: 50, // Get more results so we can filter by asset
+    target_mux_asset_id: muxAssetId,
+    similarity_threshold: 0.1, // Only return reasonably similar results
+    match_count: limit,
   });
 
   if (error) {
@@ -181,22 +184,18 @@ export async function searchChunksWithinVideo(
   }
 
   if (!results || results.length === 0) {
-    return null;
+    return [];
   }
 
-  // Filter for the specific Mux asset and get the best match
-  const matchingResult = results.find(
-    (r: { mux_asset_id: string }) => r.mux_asset_id === muxAssetId,
-  );
-
-  if (!matchingResult) {
-    return null;
-  }
-
-  return {
-    chunkId: matchingResult.best_chunk_id,
-    chunkText: matchingResult.best_chunk_text,
-    startTime: matchingResult.best_chunk_start_time,
-    similarityScore: matchingResult.similarity_score,
-  };
+  return results.map((match: {
+    best_chunk_id: string;
+    best_chunk_text: string;
+    best_chunk_start_time: number;
+    similarity_score: number;
+  }) => ({
+    chunkId: match.best_chunk_id,
+    chunkText: match.best_chunk_text,
+    startTime: match.best_chunk_start_time,
+    similarityScore: match.similarity_score,
+  }));
 }

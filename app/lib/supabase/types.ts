@@ -102,24 +102,44 @@ export interface Database {
       [_ in never]: never
     };
     Functions: {
-      match_chunks_within_video: {
-        Args: {
-          match_count?: number;
-          query_embedding: string;
-          similarity_threshold?: number;
+      match_chunks_within_video:
+        | {
+          Args: {
+            match_count?: number;
+            query_embedding: string;
+            similarity_threshold?: number;
+          };
+          Returns: {
+            best_chunk_id: string;
+            best_chunk_start_time: number;
+            best_chunk_text: string;
+            description: string;
+            mux_asset_id: string;
+            similarity_score: number;
+            title: string;
+            topics: string[];
+            video_id: string;
+          }[];
+        } |
+        {
+          Args: {
+            match_count?: number;
+            query_embedding: string;
+            similarity_threshold?: number;
+            target_mux_asset_id?: string;
+          };
+          Returns: {
+            best_chunk_id: string;
+            best_chunk_start_time: number;
+            best_chunk_text: string;
+            description: string;
+            mux_asset_id: string;
+            similarity_score: number;
+            title: string;
+            topics: string[];
+            video_id: string;
+          }[];
         };
-        Returns: {
-          best_chunk_id: string;
-          best_chunk_start_time: number;
-          best_chunk_text: string;
-          description: string;
-          mux_asset_id: string;
-          similarity_score: number;
-          title: string;
-          topics: string[];
-          video_id: string;
-        }[];
-      };
       match_video_chunks: {
         Args: {
           match_count?: number;
