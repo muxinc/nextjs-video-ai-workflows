@@ -7,7 +7,7 @@ import type { WorkflowStatus } from "@/app/media/types";
 import { getSummaryAndTagsWorkflow } from "@/workflows/get-summary-and-tags";
 import type { GetSummaryAndTagsResult, SummaryStepId, SummaryWorkflowResult } from "@/workflows/get-summary-and-tags";
 
-import { mapWorkflowStatus, readProgressEvents } from "./workflow-action-utils";
+import { mapWorkflowStatus, readProgressEvents } from "../workflow-action-utils";
 
 export type SummaryTone = "normal" | "professional" | "sassy";
 

@@ -2,11 +2,11 @@
 
 import type { TranscriptCue } from "@/app/media/types";
 
-import { Layer1SummaryAndTags } from "./layer-1-summary";
-import { Layer2Localization } from "./layer-2-localization";
-import { PlayerProvider } from "./player-context-provider";
-import { SyncedTranscript } from "./synced-transcript";
-import { VideoPlayer } from "./video-player";
+import { Layer2Localization } from "./localization/ui";
+import { PlayerProvider } from "./player/provider";
+import { VideoPlayer } from "./player/ui";
+import { Layer1SummaryAndTags } from "./summarize-and-tag/ui";
+import { SyncedTranscript } from "./transcript/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

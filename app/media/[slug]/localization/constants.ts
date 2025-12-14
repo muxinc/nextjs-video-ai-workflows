@@ -4,7 +4,7 @@
 // server and client components.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { WorkflowStatus } from "../types";
+import type { WorkflowStatus } from "../../types";
 
 export interface TargetLanguage {
   code: string;

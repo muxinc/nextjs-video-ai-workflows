@@ -6,11 +6,19 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import type { TranscriptCue } from "@/app/media/types";
 import { formatTime } from "@/app/media/utils";
 
-import { searchTranscript } from "./transcript-actions";
+import { usePlayer } from "../player/use-player";
+
+import { searchTranscript } from "./actions";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
+
+interface SyncedTranscriptProps {
+  cues: TranscriptCue[];
+  muxAssetId: string;
+  title?: string;
+}
 
 interface TranscriptPanelProps {
   cues: TranscriptCue[];
@@ -21,10 +29,10 @@ interface TranscriptPanelProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Component
+// TranscriptPanel - Core transcript UI
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: TranscriptPanelProps) {
+function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: TranscriptPanelProps) {
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [scrollDirection, setScrollDirection] = useState<"up" | "down">("up");
   const [searchQuery, setSearchQuery] = useState("");
@@ -583,5 +591,27 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, tit
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SyncedTranscript - Player-connected wrapper
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function SyncedTranscript({ cues, muxAssetId, title }: SyncedTranscriptProps) {
+  const { currentTime, seekTo } = usePlayer();
+
+  if (cues.length === 0) {
+    return null;
+  }
+
+  return (
+    <TranscriptPanel
+      cues={cues}
+      currentTime={currentTime}
+      onSeek={seekTo}
+      muxAssetId={muxAssetId}
+      title={title}
+    />
   );
 }

@@ -18,4 +18,3 @@ export interface TranscriptCue {
  * Maps to the underlying Vercel Workflow statuses.
  */
 export type WorkflowStatus = "idle" | "starting" | "running" | "completed" | "failed";
-

@@ -14,6 +14,9 @@ import {
 } from "@/app/lib/workflow-state";
 import { mergeSteps } from "@/app/media/[slug]/workflow-action-utils";
 
+import { usePlayer } from "../player/use-player";
+import { StatusBadge, StepProgress } from "../workflow-components";
+
 import {
   isAudioTrackReadyAction,
   isCaptionTrackReadyAction,
@@ -21,20 +24,18 @@ import {
   pollCaptionTranslationAction,
   startAudioTranslationAction,
   startCaptionTranslationAction,
-} from "./layer-2-actions";
+} from "./actions";
 import {
   AUDIO_STEPS,
   CAPTION_STEPS,
   TARGET_LANGUAGES,
-} from "./layer-2-constants";
+} from "./constants";
 import type {
   AudioStepId,
   CaptionStepId,
   TargetLanguage,
   TranslationStatus,
-} from "./layer-2-constants";
-import { usePlayer } from "./use-player";
-import { StatusBadge, StepProgress } from "./workflow-components";
+} from "./constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

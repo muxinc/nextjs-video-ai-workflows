@@ -6,8 +6,9 @@ import { findAudioTrack, findTextTrack, getAsset } from "@/app/lib/mux";
 import { translateAudioWorkflow } from "@/workflows/translate-audio";
 import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 
-import type { AudioStepId, CaptionStepId, TranslationStatus } from "./layer-2-constants";
-import { mapWorkflowStatus, readProgressEvents } from "./workflow-action-utils";
+import { mapWorkflowStatus, readProgressEvents } from "../workflow-action-utils";
+
+import type { AudioStepId, CaptionStepId, TranslationStatus } from "./constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types (interfaces can be exported from server action files)

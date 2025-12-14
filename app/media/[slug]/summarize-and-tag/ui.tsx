@@ -14,9 +14,10 @@ import {
 import { mergeSteps } from "@/app/media/[slug]/workflow-action-utils";
 import type { SummaryStepId } from "@/workflows/get-summary-and-tags";
 
-import type { SummaryStatus, SummaryTone } from "./layer-1-actions";
-import { pollSummaryWorkflowAction, startSummaryWorkflowAction } from "./layer-1-actions";
-import { StatusBadge, StepProgress } from "./workflow-components";
+import { StatusBadge, StepProgress } from "../workflow-components";
+
+import type { SummaryStatus, SummaryTone } from "./actions";
+import { pollSummaryWorkflowAction, startSummaryWorkflowAction } from "./actions";
 
 const TONE_OPTIONS: { value: SummaryTone; label: string }[] = [
   { value: "normal", label: "NORMAL" },
