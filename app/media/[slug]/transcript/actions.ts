@@ -9,11 +9,11 @@ import type { ChunkWithinVideoResult } from "@/app/lib/supabase/search";
 
 /**
  * Server action to search transcript chunks within a specific video.
- * Returns the best matching chunk's start time for transcript navigation.
+ * Returns matching chunks for transcript navigation.
  */
 export async function searchTranscript(
   query: string,
   muxAssetId: string,
-): Promise<ChunkWithinVideoResult | null> {
+): Promise<ChunkWithinVideoResult[]> {
   return searchChunksWithinVideo(query, muxAssetId);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import type { TranscriptCue } from "@/app/media/types";
 import { formatTime } from "@/app/media/utils";
@@ -37,8 +37,8 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
   const [scrollDirection, setScrollDirection] = useState<"up" | "down">("up");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, startSearchTransition] = useTransition();
-  const [activeHitIndex, setActiveHitIndex] = useState(-1);
-  const [semanticHighlightedCueId, setSemanticHighlightedCueId] = useState<string | null>(null);
+  const [semanticHits, setSemanticHits] = useState<Array<{ cueId: string; chunkText: string }>>([]);
+  const [activeHitIndex, setActiveHitIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const cueRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const isAutoScrollingRef = useRef(false);
@@ -153,36 +153,8 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
-  const hitCueIds = useMemo(() => {
-    if (!normalizedQuery)
-      return [];
-    return cues
-      .filter(cue => cue.text.toLowerCase().includes(normalizedQuery))
-      .map(cue => cue.id);
-  }, [cues, normalizedQuery]);
-
-  const hitCueIdSet = useMemo(() => new Set(hitCueIds), [hitCueIds]);
-
-  // Derive a safe active hit index (clamped to valid range)
-  const safeActiveHitIndex = useMemo(() => {
-    if (!normalizedQuery || hitCueIds.length === 0)
-      return -1;
-    if (activeHitIndex === -1)
-      return 0;
-    return Math.min(activeHitIndex, hitCueIds.length - 1);
-  }, [normalizedQuery, hitCueIds.length, activeHitIndex]);
-
-  const activeHitCueId = hitCueIds[safeActiveHitIndex] ?? null;
-
-  // Clear semantic highlight after a delay
-  useEffect(() => {
-    if (semanticHighlightedCueId) {
-      const timeout = setTimeout(() => {
-        setSemanticHighlightedCueId(null);
-      }, 3000);
-      return () => clearTimeout(timeout);
-    }
-  }, [semanticHighlightedCueId]);
+  // Create a set of all hit cue IDs for highlighting
+  const hitCueIdSet = new Set(semanticHits.map(hit => hit.cueId));
 
   // Find the cue that contains or is closest to a given time
   const findCueByTime = useCallback((targetTime: number): TranscriptCue | null => {
@@ -242,60 +214,95 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
     }, 600);
   }, []);
 
-  const goToHitIndex = useCallback((nextIndex: number) => {
-    const targetCueId = hitCueIds[nextIndex];
-    const targetCue = cues.find(cue => cue.id === targetCueId);
-    if (!targetCue)
-      return;
-    setActiveHitIndex(nextIndex);
-    scrollToCue(targetCue);
-  }, [cues, hitCueIds, scrollToCue]);
+  // Get the current active hit
+  const currentHit = semanticHits[activeHitIndex] ?? null;
 
+  // Navigate to a specific hit index
+  const goToHit = useCallback((index: number) => {
+    if (semanticHits.length === 0)
+      return;
+    const hit = semanticHits[index];
+    if (!hit)
+      return;
+
+    const targetCue = cues.find(cue => cue.id === hit.cueId);
+    if (targetCue) {
+      setActiveHitIndex(index);
+      scrollToCue(targetCue);
+    }
+  }, [cues, semanticHits, scrollToCue]);
+
+  // Navigate to previous hit
   const handlePrevHit = useCallback(() => {
-    if (hitCueIds.length === 0)
+    if (semanticHits.length === 0)
       return;
-    const nextIndex = safeActiveHitIndex <= 0 ? hitCueIds.length - 1 : safeActiveHitIndex - 1;
-    goToHitIndex(nextIndex);
-  }, [safeActiveHitIndex, goToHitIndex, hitCueIds.length]);
+    const prevIndex = activeHitIndex <= 0 ? semanticHits.length - 1 : activeHitIndex - 1;
+    goToHit(prevIndex);
+  }, [activeHitIndex, goToHit, semanticHits.length]);
 
+  // Navigate to next hit
   const handleNextHit = useCallback(() => {
-    if (hitCueIds.length === 0)
+    if (semanticHits.length === 0)
       return;
-    // Check raw activeHitIndex for initial state (-1 means no hit selected yet)
-    const nextIndex = activeHitIndex === -1 || safeActiveHitIndex >= hitCueIds.length - 1 ? 0 : safeActiveHitIndex + 1;
-    goToHitIndex(nextIndex);
-  }, [activeHitIndex, safeActiveHitIndex, goToHitIndex, hitCueIds.length]);
+    const nextIndex = activeHitIndex >= semanticHits.length - 1 ? 0 : activeHitIndex + 1;
+    goToHit(nextIndex);
+  }, [activeHitIndex, goToHit, semanticHits.length]);
 
-  // Handle transcript search
+  // Handle transcript search - combines literal and semantic search
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (!normalizedQuery)
-      return;
-
-    // Prefer literal hits (client-side), fallback to semantic (server) search
-    if (hitCueIds.length > 0) {
-      handleNextHit();
-      return;
-    }
-
-    if (!muxAssetId)
+    if (!normalizedQuery || !muxAssetId)
       return;
 
     startSearchTransition(async () => {
-      const result = await searchTranscript(searchQuery, muxAssetId);
+      // 1. Compute literal text matches (cues containing the query)
+      const literalHits = cues
+        .filter(cue => cue.text.toLowerCase().includes(normalizedQuery))
+        .map(cue => ({ cueId: cue.id, type: "literal" as const }));
 
-      if (result) {
-        // Find the cue closest to the result's start time
-        const targetCue = findCueByTime(result.startTime);
+      // 2. Run semantic search
+      const semanticResults = await searchTranscript(searchQuery, muxAssetId);
 
-        if (targetCue) {
-          // Temporarily highlight the found cue
-          setSemanticHighlightedCueId(targetCue.id);
-          scrollToCue(targetCue);
+      // 3. Map semantic results to cues
+      const semanticHitsFromSearch = semanticResults
+        .map((result) => {
+          const targetCue = findCueByTime(result.startTime);
+          return targetCue ? { cueId: targetCue.id, type: "semantic" as const } : null;
+        })
+        .filter((hit): hit is { cueId: string; type: "semantic" } => hit !== null);
+
+      // 4. Combine and deduplicate (literal matches take priority, ordered by transcript position)
+      const seenCueIds = new Set<string>();
+      const combinedHits: Array<{ cueId: string; type: "literal" | "semantic" }> = [];
+
+      // Add all cues in transcript order, prioritizing literal matches
+      for (const cue of cues) {
+        const isLiteral = literalHits.some(h => h.cueId === cue.id);
+        const isSemantic = semanticHitsFromSearch.some(h => h.cueId === cue.id);
+
+        if (isLiteral && !seenCueIds.has(cue.id)) {
+          combinedHits.push({ cueId: cue.id, type: "literal" });
+          seenCueIds.add(cue.id);
+        } else if (isSemantic && !seenCueIds.has(cue.id)) {
+          combinedHits.push({ cueId: cue.id, type: "semantic" });
+          seenCueIds.add(cue.id);
         }
       }
+
+      if (combinedHits.length > 0) {
+        setSemanticHits(combinedHits.map(h => ({ cueId: h.cueId, chunkText: "" })));
+        setActiveHitIndex(0);
+        // Scroll to first hit
+        const firstCue = cues.find(cue => cue.id === combinedHits[0].cueId);
+        if (firstCue) {
+          scrollToCue(firstCue);
+        }
+      } else {
+        setSemanticHits([]);
+        setActiveHitIndex(0);
+      }
     });
-  }, [findCueByTime, handleNextHit, hitCueIds.length, muxAssetId, normalizedQuery, scrollToCue, searchQuery]);
+  }, [cues, findCueByTime, muxAssetId, normalizedQuery, scrollToCue, searchQuery]);
 
   return (
     <div className="card-brutal relative flex h-full flex-col overflow-hidden">
@@ -322,8 +329,8 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
-                    setActiveHitIndex(-1);
-                    setSemanticHighlightedCueId(null);
+                    setSemanticHits([]);
+                    setActiveHitIndex(0);
                   }}
                   placeholder="Search transcript..."
                   className="w-full border-2 border-border bg-surface px-3 py-2 text-base placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent sm:py-1.5 sm:text-sm"
@@ -379,7 +386,11 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
                 {normalizedQuery && (
                   <motion.button
                     type="button"
-                    onClick={() => setSearchQuery("")}
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSemanticHits([]);
+                      setActiveHitIndex(0);
+                    }}
                     className="border-2 border-border bg-surface px-3 py-2 text-base font-bold sm:py-1.5 sm:text-sm"
                     aria-label="Clear search"
                     title="Clear search"
@@ -396,9 +407,9 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
               </AnimatePresence>
             </form>
 
-            {/* Hit UI (only when there is a query) */}
+            {/* Semantic search results indicator */}
             <AnimatePresence mode="popLayout">
-              {normalizedQuery && (
+              {semanticHits.length > 0 && (
                 <motion.div
                   className="mt-2 flex items-center justify-between gap-3 overflow-hidden text-xs text-foreground-muted"
                   initial={{ opacity: 0, height: 0 }}
@@ -410,16 +421,14 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
                   }}
                 >
                   <span style={{ fontFamily: "var(--font-space-mono)" }}>
-                    {hitCueIds.length === 0 ?
-                      "No hits" :
-                      `${hitCueIds.length} hit${hitCueIds.length === 1 ? "" : "s"} • ${safeActiveHitIndex + 1}/${hitCueIds.length}`}
+                    {`${semanticHits.length} match${semanticHits.length === 1 ? "" : "es"} • ${activeHitIndex + 1}/${semanticHits.length}`}
                   </span>
 
                   <div className="flex items-center gap-2">
                     <motion.button
                       type="button"
                       onClick={handlePrevHit}
-                      disabled={hitCueIds.length === 0}
+                      disabled={semanticHits.length === 0}
                       className="border-2 border-border bg-surface px-2 py-1 font-bold disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label="Previous hit"
                       title="Previous hit"
@@ -432,7 +441,7 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
                     <motion.button
                       type="button"
                       onClick={handleNextHit}
-                      disabled={hitCueIds.length === 0}
+                      disabled={semanticHits.length === 0}
                       className="border-2 border-border bg-surface px-2 py-1 font-bold disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label="Next hit"
                       title="Next hit"
@@ -479,15 +488,13 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
               className="group relative flex cursor-pointer gap-4 overflow-hidden px-5 py-3"
               initial={false}
               animate={{
-                backgroundColor: semanticHighlightedCueId === cue.id ?
+                backgroundColor: currentHit?.cueId === cue.id ?
                   "rgba(250, 204, 21, 0.2)" :
-                  activeHitCueId === cue.id ?
-                    "rgba(250, 204, 21, 0.1)" :
-                    hitCueIdSet.has(cue.id) ?
-                      "rgba(250, 204, 21, 0.05)" :
-                      activeCue?.id === cue.id ?
-                        "var(--surface-elevated)" :
-                        "transparent",
+                  hitCueIdSet.has(cue.id) ?
+                    "rgba(250, 204, 21, 0.08)" :
+                    activeCue?.id === cue.id ?
+                      "var(--surface-elevated)" :
+                      "transparent",
               }}
               whileHover={{ backgroundColor: "var(--surface-elevated)" }}
               transition={{ duration: 0.2 }}
@@ -497,27 +504,24 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
                 className="absolute inset-y-0 left-0 w-1"
                 initial={false}
                 animate={{
-                  scaleY: semanticHighlightedCueId === cue.id ||
-                    activeHitCueId === cue.id ||
+                  scaleY: currentHit?.cueId === cue.id ||
                     hitCueIdSet.has(cue.id) ||
                     activeCue?.id === cue.id ?
                     1 :
                     0,
-                  backgroundColor: semanticHighlightedCueId === cue.id ?
+                  backgroundColor: currentHit?.cueId === cue.id ?
                     "#facc15" :
-                    activeHitCueId === cue.id ?
-                      "#facc15" :
-                      hitCueIdSet.has(cue.id) ?
-                        "rgba(250, 204, 21, 0.5)" :
-                        activeCue?.id === cue.id ?
-                          "var(--accent)" :
-                          "transparent",
-                  opacity: semanticHighlightedCueId === cue.id ? [1, 0.5, 1] : 1,
+                    hitCueIdSet.has(cue.id) ?
+                      "rgba(250, 204, 21, 0.5)" :
+                      activeCue?.id === cue.id ?
+                        "var(--accent)" :
+                        "transparent",
+                  opacity: currentHit?.cueId === cue.id ? [1, 0.5, 1] : 1,
                 }}
                 transition={{
                   scaleY: { type: "spring", stiffness: 500, damping: 30 },
                   backgroundColor: { duration: 0.2 },
-                  opacity: semanticHighlightedCueId === cue.id ?
+                  opacity: currentHit?.cueId === cue.id ?
                       { duration: 0.8, repeat: Infinity, ease: "easeInOut" } :
                       { duration: 0.2 },
                 }}
