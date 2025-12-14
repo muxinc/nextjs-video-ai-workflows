@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
-import type { Layer1SummaryState, SummaryTone } from "./layer-1-actions";
-import { generateSummaryAndTagsAction } from "./layer-1-actions";
+import type { SummaryStepId } from "@/workflows/get-summary-and-tags";
+
+import type { SummaryStatus, SummaryTone } from "./layer-1-actions";
+import { pollSummaryWorkflowAction, startSummaryWorkflowAction } from "./layer-1-actions";
 
 const TONE_OPTIONS: { value: SummaryTone; label: string }[] = [
   { value: "normal", label: "NORMAL" },
@@ -12,20 +14,165 @@ const TONE_OPTIONS: { value: SummaryTone; label: string }[] = [
   { value: "sassy", label: "PLAYFUL" },
 ];
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
+const POLL_INTERVAL = 1500;
+
+const SUMMARY_STEPS: readonly { id: SummaryStepId; label: string }[] = [
+  { id: "prepare", label: "Preparing inputs" },
+  { id: "generate", label: "Generating summary + tags" },
+  { id: "finalize", label: "Finalizing output" },
+] as const;
+
+function StatusBadge({ status }: { status: SummaryStatus }) {
+  const config: Record<SummaryStatus, { label: string; className: string }> = {
+    idle: { label: "READY", className: "bg-surface-elevated text-foreground-muted" },
+    starting: { label: "QUEUED", className: "bg-[#fff8e6] text-[#b8860b]" },
+    running: { label: "RUNNING", className: "bg-[#e8f0fa] text-[#1c65be]" },
+    completed: { label: "DONE", className: "bg-[#e9f5ec] text-[#22903d]" },
+    failed: { label: "FAILED", className: "bg-[#fde8e8] text-[#dc2626]" },
+  };
+
+  const { label, className } = config[status];
 
   return (
-    <button
-      type="submit"
-      className="btn-action w-full"
-      disabled={pending}
+    <span
+      className={`inline-flex items-center border-2 border-border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${className}`}
+      style={{ fontFamily: "var(--font-space-mono)" }}
     >
-      {pending ? "GENERATING..." : "SUMMARIZE & TAG"}
-      {!pending && (
-        <span className="arrow-icon ml-2">↗</span>
+      {status === "running" && (
+        <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
       )}
-    </button>
+      {label}
+    </span>
+  );
+}
+
+function CompletedStepIcon({ shouldReduceMotion }: { shouldReduceMotion: boolean | null }) {
+  return (
+    <motion.svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden="true"
+    >
+      <motion.path
+        d="M3 7.5 L6 10.2 L11 3.8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="square"
+        strokeLinejoin="miter"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: shouldReduceMotion ? 0 : 0.22, ease: "easeOut" }}
+      />
+    </motion.svg>
+  );
+}
+
+function CurrentStepIcon({ shouldReduceMotion }: { shouldReduceMotion: boolean | null }) {
+  const animate = shouldReduceMotion ?
+      { opacity: 1 } :
+      { opacity: [1, 0.4, 1], scale: [1, 1.25, 1] };
+
+  const transition = shouldReduceMotion ?
+      { duration: 0 } :
+      { duration: 0.9, repeat: Number.POSITIVE_INFINITY, ease: [0.42, 0, 0.58, 1] as const };
+
+  return (
+    <motion.svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden="true"
+    >
+      <motion.circle
+        cx="7"
+        cy="7"
+        r="3"
+        fill="currentColor"
+        initial={false}
+        animate={animate}
+        transition={transition}
+      />
+    </motion.svg>
+  );
+}
+
+function PendingStepIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle cx="7" cy="7" r="3.5" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
+
+function StepProgress<T extends string>({
+  steps,
+  completedSteps,
+  isRunning,
+  shouldReduceMotion,
+}: {
+  steps: readonly { id: T; label: string }[];
+  completedSteps: T[];
+  isRunning: boolean;
+  shouldReduceMotion: boolean | null;
+}) {
+  const currentStepIndex = completedSteps.length;
+
+  return (
+    <div className="space-y-1.5">
+      {steps.map((step, index) => {
+        const isCompleted = completedSteps.includes(step.id);
+        const isCurrent = isRunning && index === currentStepIndex;
+
+        let icon: React.ReactNode;
+        let iconClassName: string;
+        if (isCompleted) {
+          icon = <CompletedStepIcon shouldReduceMotion={shouldReduceMotion} />;
+          iconClassName = "text-[#22903d]";
+        } else if (isCurrent) {
+          icon = <CurrentStepIcon shouldReduceMotion={shouldReduceMotion} />;
+          iconClassName = "text-[#1c65be]";
+        } else {
+          icon = <PendingStepIcon />;
+          iconClassName = "text-foreground-muted";
+        }
+
+        let labelClassName: string;
+        if (isCompleted) {
+          labelClassName = "text-[#22903d]";
+        } else if (isCurrent) {
+          labelClassName = "font-bold text-[#1c65be]";
+        } else {
+          labelClassName = "text-foreground-muted";
+        }
+
+        return (
+          <motion.div
+            key={step.id}
+            className="flex items-center gap-2 text-[10px]"
+            style={{ fontFamily: "var(--font-space-mono)" }}
+            initial={shouldReduceMotion ? false : { opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut", delay: index * 0.03 }}
+          >
+            <span className="flex h-4 w-4 items-center justify-center">
+              <span className={iconClassName}>{icon}</span>
+            </span>
+            <span className={labelClassName}>
+              {step.label}
+            </span>
+          </motion.div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -73,26 +220,151 @@ function ToneSelector({
 }
 
 function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
-  const [state, action] = useActionState<Layer1SummaryState, FormData>(
-    generateSummaryAndTagsAction,
-    { status: "idle" },
-  );
   const [selectedTone, setSelectedTone] = useState<SummaryTone>("normal");
+  const [isMetadataCollapsed, setIsMetadataCollapsed] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
-  const isError = state.status === "error";
-  const isSuccess = state.status === "success";
+  type SummaryResult = NonNullable<Awaited<ReturnType<typeof pollSummaryWorkflowAction>>["result"]>;
+
+  const [workflowState, setWorkflowState] = useState<{
+    status: SummaryStatus;
+    completedSteps: SummaryStepId[];
+    runId?: string;
+    error?: string;
+    result?: SummaryResult;
+  }>({ status: "idle", completedSteps: [] });
+
+  const [isPending, startTransition] = useTransition();
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamIndexRef = useRef(0);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const mergeSteps = useCallback((prev: SummaryStepId[], next: SummaryStepId[]) => {
+    return next.length ? Array.from(new Set([...prev, ...next])) : prev;
+  }, []);
+
+  const pollStatus = useCallback(async (runId: string) => {
+    const result = await pollSummaryWorkflowAction(runId, streamIndexRef.current);
+    streamIndexRef.current = result.nextIndex;
+
+    if (result.status === "completed" || result.status === "failed") {
+      stopPolling();
+      setWorkflowState(prev => ({
+        ...prev,
+        status: result.status,
+        completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
+        runId,
+        error: result.error,
+        result: result.result,
+      }));
+      return;
+    }
+
+    setWorkflowState(prev => ({
+      ...prev,
+      status: result.status,
+      completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
+    }));
+  }, [mergeSteps, stopPolling]);
+
+  const startWorkflow = useCallback(() => {
+    stopPolling();
+    streamIndexRef.current = 0;
+    setWorkflowState({ status: "starting", completedSteps: [] });
+    setIsMetadataCollapsed(false);
+
+    startTransition(async () => {
+      const result = await startSummaryWorkflowAction(assetId, selectedTone);
+
+      if (result.status === "failed" || !result.runId) {
+        setWorkflowState({
+          status: "failed",
+          completedSteps: [],
+          error: result.error,
+        });
+        return;
+      }
+
+      setWorkflowState({ status: "running", completedSteps: [], runId: result.runId });
+
+      pollRef.current = setInterval(() => {
+        void pollStatus(result.runId);
+      }, POLL_INTERVAL);
+
+      void pollStatus(result.runId);
+    });
+  }, [assetId, pollStatus, selectedTone, startTransition, stopPolling]);
+
+  useEffect(() => stopPolling, [stopPolling]);
+
+  const isRunning = workflowState.status === "running" || workflowState.status === "starting";
+  const isWorking = isPending || isRunning;
+  const isError = workflowState.status === "failed";
+  const isSuccess = workflowState.status === "completed";
 
   return (
     <div className="space-y-4">
-      <form action={action} className="space-y-4">
-        <input type="hidden" name="assetId" value={assetId} />
-        <input type="hidden" name="tone" value={selectedTone} />
-
+      <div className="space-y-4">
         <ToneSelector selectedTone={selectedTone} onToneChange={setSelectedTone} />
 
-        <SubmitButton />
+        <div className="flex items-center justify-between">
+          <span
+            className="text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
+            style={{ fontFamily: "var(--font-space-mono)" }}
+          >
+            Smart Summary
+          </span>
+          <StatusBadge status={workflowState.status} />
+        </div>
 
-        {isError && (
+        <button
+          type="button"
+          className="btn-action w-full"
+          onClick={startWorkflow}
+          disabled={isWorking}
+        >
+          {isWorking ? "PROCESSING..." : "SUMMARIZE & TAG"}
+          {!isWorking && (
+            <span className="arrow-icon ml-2">↗</span>
+          )}
+        </button>
+
+        <AnimatePresence initial={false}>
+          {(isRunning || workflowState.completedSteps.length > 0) && (
+            <motion.div
+              key="summary-progress"
+              className="border-2 border-border bg-surface-elevated"
+              initial={shouldReduceMotion ? false : { height: 0, opacity: 0, y: -4 }}
+              animate={{ height: "auto", opacity: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { height: 0, opacity: 0, y: -4 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut" }}
+            >
+              <div className="p-3">
+                <StepProgress
+                  steps={SUMMARY_STEPS}
+                  completedSteps={workflowState.completedSteps}
+                  isRunning={isRunning}
+                  shouldReduceMotion={shouldReduceMotion}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {workflowState.status === "completed" && (
+          <div className="border-2 border-[#22903d] bg-[#e9f5ec] p-2 text-xs text-[#22903d]">
+            ✓ Summary generated. Ready below.
+          </div>
+        )}
+
+        {isError && workflowState.error && (
           <div className="border-3 border-border bg-surface-elevated p-4">
             <div
               className="mb-1 text-xs font-bold uppercase tracking-wider text-foreground"
@@ -100,107 +372,91 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
             >
               Generation failed
             </div>
-            <div className="text-sm text-foreground-muted">{state.error}</div>
+            <div className="text-sm text-foreground-muted">{workflowState.error}</div>
           </div>
         )}
-      </form>
+      </div>
 
       {isSuccess && (
         <div className="space-y-4">
           <div className="border-3 border-border bg-surface-elevated">
-            <div
-              className="border-b-2 border-border bg-surface px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-foreground-muted"
-              style={{ fontFamily: "var(--font-space-mono)" }}
-            >
-              GENERATED METADATA
+            <div className="flex items-center justify-between gap-3 border-b-2 border-border bg-surface px-4 py-2">
+              <div
+                className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground-muted"
+                style={{ fontFamily: "var(--font-space-mono)" }}
+              >
+                GENERATED METADATA
+              </div>
+
+              <button
+                type="button"
+                className="tone-btn"
+                onClick={() => setIsMetadataCollapsed(prev => !prev)}
+                aria-expanded={!isMetadataCollapsed}
+                style={{ fontFamily: "var(--font-space-mono)" }}
+              >
+                [
+                {isMetadataCollapsed ? "EXPAND" : "COLLAPSE"}
+                ]
+              </button>
             </div>
 
-            <div className="space-y-4 p-4">
-              <div>
-                <div
-                  className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                  style={{ fontFamily: "var(--font-space-mono)" }}
+            <AnimatePresence initial={false}>
+              {!isMetadataCollapsed && (
+                <motion.div
+                  key="generated-metadata"
+                  className="overflow-hidden"
+                  initial={shouldReduceMotion ? false : { height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut" }}
                 >
-                  Title
-                </div>
-                <div
-                  className="text-base font-bold"
-                  style={{ fontFamily: "var(--font-syne)" }}
-                >
-                  {state.result.title}
-                </div>
-              </div>
+                  <div className="space-y-4 p-4">
+                    <div>
+                      <div
+                        className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
+                        style={{ fontFamily: "var(--font-space-mono)" }}
+                      >
+                        Title
+                      </div>
+                      <div
+                        className="text-base font-bold"
+                        style={{ fontFamily: "var(--font-syne)" }}
+                      >
+                        {workflowState.result?.title}
+                      </div>
+                    </div>
 
-              <div>
-                <div
-                  className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                  style={{ fontFamily: "var(--font-space-mono)" }}
-                >
-                  Description
-                </div>
-                <p className="text-sm leading-relaxed text-foreground-muted">
-                  {state.result.description}
-                </p>
-              </div>
+                    <div>
+                      <div
+                        className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
+                        style={{ fontFamily: "var(--font-space-mono)" }}
+                      >
+                        Description
+                      </div>
+                      <p className="text-sm leading-relaxed text-foreground-muted">
+                        {workflowState.result?.description}
+                      </p>
+                    </div>
 
-              <div>
-                <div
-                  className="mb-2 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                  style={{ fontFamily: "var(--font-space-mono)" }}
-                >
-                  Tags
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {state.result.tags.map(tag => (
-                    <TagChip key={tag} tag={tag} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <details className="border-3 border-border bg-surface-elevated">
-            <summary
-              className="cursor-pointer border-b-2 border-border bg-surface px-4 py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface-elevated"
-              style={{ fontFamily: "var(--font-space-mono)" }}
-            >
-              How it was made (inputs)
-            </summary>
-
-            <div className="space-y-3 p-4 text-sm text-foreground-muted">
-              <div>
-                <div
-                  className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                  style={{ fontFamily: "var(--font-space-mono)" }}
-                >
-                  Storyboard URL
-                </div>
-                <a
-                  className="break-all text-accent underline decoration-2 underline-offset-2 hover:text-foreground"
-                  href={state.result.storyboardUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {state.result.storyboardUrl}
-                </a>
-              </div>
-
-              {state.result.transcriptText && (
-                <div>
-                  <div
-                    className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                    style={{ fontFamily: "var(--font-space-mono)" }}
-                  >
-                    Transcript excerpt
+                    <div>
+                      <div
+                        className="mb-2 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
+                        style={{ fontFamily: "var(--font-space-mono)" }}
+                      >
+                        Tags
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(workflowState.result?.tags ?? []).map(tag => (
+                          <TagChip key={tag} tag={tag} />
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap border-2 border-border bg-surface p-3 text-xs text-foreground-muted">
-                    {state.result.transcriptText.slice(0, 900)}
-                    {state.result.transcriptText.length > 900 ? "…" : ""}
-                  </pre>
-                </div>
+                </motion.div>
               )}
-            </div>
-          </details>
+            </AnimatePresence>
+          </div>
         </div>
       )}
     </div>
