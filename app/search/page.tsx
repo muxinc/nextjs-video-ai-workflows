@@ -6,6 +6,8 @@ import { Header } from "@/app/components/header";
 import { searchVideoChunks } from "@/app/lib/supabase/search";
 import type { VideoChunkResult } from "@/app/lib/supabase/search";
 
+import { SearchResults } from "./search-results";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,7 +44,7 @@ function SearchResult({ result }: { result: VideoChunkResult }) {
       href={`/media/${result.mux_asset_id}${timestampParam}`}
       className="group block"
     >
-      <article className="card-brutal flex gap-4 overflow-hidden p-4 transition-transform duration-100 group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:shadow-[6px_6px_0_var(--border)]">
+      <article className="card-brutal relative flex gap-4 overflow-visible p-4 transition-transform duration-100 group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:shadow-[6px_6px_0_var(--border)]">
         {/* Thumbnail */}
         <div className="relative aspect-video w-40 flex-shrink-0 overflow-hidden bg-background-dark">
           {result.playback_id ?
@@ -72,7 +74,7 @@ function SearchResult({ result }: { result: VideoChunkResult }) {
         </div>
 
         {/* Content */}
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-2 pb-12">
           {/* Title */}
           <h3 className="line-clamp-1 font-bold leading-tight group-hover:text-accent">
             {result.title || `Video ${result.video_id.slice(0, 8)}`}
@@ -96,14 +98,25 @@ function SearchResult({ result }: { result: VideoChunkResult }) {
               ))}
             </div>
           )}
+        </div>
 
-          {/* Similarity score */}
+        {/* View CTA (visual affordance; card link handles navigation) */}
+        <div className="pointer-events-none absolute bottom-4 right-4">
           <div
-            className="mt-auto text-[10px] text-foreground-muted"
+            className="inline-flex items-center gap-2 border-3 border-border bg-accent px-4 py-2 text-xs font-extrabold uppercase tracking-[0.1em] text-foreground shadow-[4px_4px_0_var(--border)] transition-transform duration-100 group-hover:-translate-x-0.5 group-hover:-translate-y-0.5 group-hover:shadow-[6px_6px_0_var(--border)]"
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
-            {(result.similarity_score * 100).toFixed(1)}
-            % match
+            View talk
+            <svg
+              className="block h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={3}
+              aria-hidden="true"
+            >
+              <path strokeLinecap="square" strokeLinejoin="miter" d="M9 5l7 7-7 7" />
+            </svg>
           </div>
         </div>
       </article>
@@ -196,11 +209,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               (
                 results.length > 0 ?
                     (
-                      <div className="flex flex-col gap-4">
+                      <SearchResults query={query}>
                         {results.map(result => (
                           <SearchResult key={result.chunk_id} result={result} />
                         ))}
-                      </div>
+                      </SearchResults>
                     ) :
                     !error && <EmptyState query={query} />
               ) :
