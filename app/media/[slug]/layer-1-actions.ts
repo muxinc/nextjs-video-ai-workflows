@@ -8,7 +8,7 @@ import type { getSummaryAndTags } from "@mux/ai/workflows";
 
 export type SummaryTone = "normal" | "professional" | "sassy";
 
-export type Level1SummaryState =
+export type Layer1SummaryState =
   { status: "idle" } |
   { status: "running" } |
   { status: "success"; result: Awaited<ReturnType<typeof getSummaryAndTags>> } |
@@ -31,9 +31,9 @@ function getProviderConfig() {
 }
 
 export async function generateSummaryAndTagsAction(
-  _prevState: Level1SummaryState,
+  _prevState: Layer1SummaryState,
   formData: FormData,
-): Promise<Level1SummaryState> {
+): Promise<Layer1SummaryState> {
   const assetId = String(formData.get("assetId") || "");
   const toneInput = formData.get("tone");
   const tone: SummaryTone =

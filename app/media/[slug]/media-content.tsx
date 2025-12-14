@@ -1,6 +1,7 @@
 "use client";
 
-import { Level1SummaryAndTags } from "./level-1-summary";
+import { Layer1SummaryAndTags } from "./layer-1-summary";
+import { Layer2Localization } from "./layer-2-localization";
 import { PlayerProvider } from "./player-context-provider";
 import { SyncedTranscript } from "./synced-transcript";
 import { VideoPlayer } from "./video-player";
@@ -35,7 +36,7 @@ function WorkflowsPanel({ assetId }: { assetId: string }) {
         <h2 style={{ fontFamily: "var(--font-syne)" }}>WORKFLOWS</h2>
       </div>
 
-      {/* Level 1: Smart Summary */}
+      {/* Layer 1: Smart Summary */}
       <section className="panel-section" aria-labelledby="smart-summary-heading">
         <div className="panel-section-header" style={{ fontFamily: "var(--font-space-mono)" }}>
           <h3 id="smart-summary-heading" className="flex items-center gap-2">
@@ -45,11 +46,11 @@ function WorkflowsPanel({ assetId }: { assetId: string }) {
           </h3>
         </div>
         <div className="p-4">
-          <Level1SummaryAndTags assetId={assetId} />
+          <Layer1SummaryAndTags assetId={assetId} />
         </div>
       </section>
 
-      {/* Level 2: Localization */}
+      {/* Layer 2: Localization */}
       <section className="panel-section" aria-labelledby="localization-heading">
         <div className="panel-section-header" style={{ fontFamily: "var(--font-space-mono)" }}>
           <h3 id="localization-heading" className="flex items-center gap-2">
@@ -58,26 +59,12 @@ function WorkflowsPanel({ assetId }: { assetId: string }) {
             <span className="ml-auto text-[9px] text-foreground-muted">LVL 2</span>
           </h3>
         </div>
-        <div className="hatched p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-bold" style={{ fontFamily: "var(--font-syne)" }}>
-                Translate Captions & Audio
-              </p>
-              <p className="mt-1 text-xs text-foreground-muted">
-                Async workflow • Coming soon
-              </p>
-            </div>
-            <div className="stripes-dark flex h-10 w-10 shrink-0 items-center justify-center border-2 border-border">
-              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="square" strokeLinejoin="miter" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-              </svg>
-            </div>
-          </div>
+        <div className="p-4">
+          <Layer2Localization assetId={assetId} />
         </div>
       </section>
 
-      {/* Level 3: Social Clips */}
+      {/* Layer 3: Social Clips */}
       <section className="panel-section" aria-labelledby="social-clips-heading">
         <div className="panel-section-header" style={{ fontFamily: "var(--font-space-mono)" }}>
           <h3 id="social-clips-heading" className="flex items-center gap-2">
