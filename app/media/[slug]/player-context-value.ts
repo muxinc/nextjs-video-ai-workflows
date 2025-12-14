@@ -13,6 +13,9 @@ export interface PlayerContextValue {
   setCurrentTime: (time: number) => void;
   playerRef: React.RefObject<MuxPlayerElement | null>;
   seekTo: (time: number) => void;
+  playerKey: number;
+  refreshPlayer: () => void;
+  consumePendingPlaybackState: () => { time: number; wasPaused: boolean } | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ export function VideoPlayer({
   title,
   accentColor = "#ff6101",
 }: VideoPlayerProps) {
-  const { playerRef, setCurrentTime } = usePlayer();
+  const { consumePendingPlaybackState, playerKey, playerRef, setCurrentTime } = usePlayer();
 
   const handleTimeUpdate = useCallback(() => {
     if (playerRef.current) {
@@ -36,7 +36,27 @@ export function VideoPlayer({
 
   const handleRef = useCallback((el: MuxPlayerElement | null) => {
     (playerRef as React.MutableRefObject<MuxPlayerElement | null>).current = el;
-  }, [playerRef]);
+    if (el) {
+      const pending = consumePendingPlaybackState();
+      if (pending) {
+        const applyRestore = () => {
+          try {
+            el.currentTime = pending.time;
+            if (!pending.wasPaused) {
+              void el.play();
+            }
+          } catch {
+            // ignore - player may not be ready yet
+          }
+          el.removeEventListener("loadedmetadata", applyRestore);
+        };
+
+        // Try immediately, but also retry once metadata is ready
+        applyRestore();
+        el.addEventListener("loadedmetadata", applyRestore);
+      }
+    }
+  }, [consumePendingPlaybackState, playerRef]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -47,6 +67,7 @@ export function VideoPlayer({
 
   return (
     <MuxPlayer
+      key={playerKey}
       ref={handleRef}
       playbackId={playbackId}
       metadata={{

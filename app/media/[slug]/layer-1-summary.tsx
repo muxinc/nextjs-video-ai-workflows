@@ -3,8 +3,8 @@
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
-import type { Level1SummaryState, SummaryTone } from "./level-1-actions";
-import { generateSummaryAndTagsAction } from "./level-1-actions";
+import type { Layer1SummaryState, SummaryTone } from "./layer-1-actions";
+import { generateSummaryAndTagsAction } from "./layer-1-actions";
 
 const TONE_OPTIONS: { value: SummaryTone; label: string }[] = [
   { value: "normal", label: "NORMAL" },
@@ -21,7 +21,7 @@ function SubmitButton() {
       className="btn-action w-full"
       disabled={pending}
     >
-      {pending ? "GENERATING..." : "RUN WORKFLOW"}
+      {pending ? "GENERATING..." : "SUMMARIZE & TAG"}
       {!pending && (
         <span className="arrow-icon ml-2">↗</span>
       )}
@@ -40,8 +40,8 @@ function TagChip({ tag }: { tag: string }) {
   );
 }
 
-export function Level1SummaryAndTags({ assetId }: { assetId: string }) {
-  return <Level1SummaryAndTagsInner assetId={assetId} />;
+export function Layer1SummaryAndTags({ assetId }: { assetId: string }) {
+  return <Layer1SummaryAndTagsInner assetId={assetId} />;
 }
 
 function ToneSelector({
@@ -72,8 +72,8 @@ function ToneSelector({
   );
 }
 
-function Level1SummaryAndTagsInner({ assetId }: { assetId: string }) {
-  const [state, action] = useActionState<Level1SummaryState, FormData>(
+function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
+  const [state, action] = useActionState<Layer1SummaryState, FormData>(
     generateSummaryAndTagsAction,
     { status: "idle" },
   );
