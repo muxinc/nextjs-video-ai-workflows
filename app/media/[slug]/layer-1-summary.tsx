@@ -46,14 +46,83 @@ function StatusBadge({ status }: { status: SummaryStatus }) {
   );
 }
 
+function CompletedStepIcon({ shouldReduceMotion }: { shouldReduceMotion: boolean | null }) {
+  return (
+    <motion.svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden="true"
+    >
+      <motion.path
+        d="M3 7.5 L6 10.2 L11 3.8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="square"
+        strokeLinejoin="miter"
+        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: shouldReduceMotion ? 0 : 0.22, ease: "easeOut" }}
+      />
+    </motion.svg>
+  );
+}
+
+function CurrentStepIcon({ shouldReduceMotion }: { shouldReduceMotion: boolean | null }) {
+  const animate = shouldReduceMotion ?
+      { opacity: 1 } :
+      { opacity: [1, 0.4, 1], scale: [1, 1.25, 1] };
+
+  const transition = shouldReduceMotion ?
+      { duration: 0 } :
+      { duration: 0.9, repeat: Number.POSITIVE_INFINITY, ease: [0.42, 0, 0.58, 1] as const };
+
+  return (
+    <motion.svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden="true"
+    >
+      <motion.circle
+        cx="7"
+        cy="7"
+        r="3"
+        fill="currentColor"
+        initial={false}
+        animate={animate}
+        transition={transition}
+      />
+    </motion.svg>
+  );
+}
+
+function PendingStepIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle cx="7" cy="7" r="3.5" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
+
 function StepProgress<T extends string>({
   steps,
   completedSteps,
   isRunning,
+  shouldReduceMotion,
 }: {
   steps: readonly { id: T; label: string }[];
   completedSteps: T[];
   isRunning: boolean;
+  shouldReduceMotion: boolean | null;
 }) {
   const currentStepIndex = completedSteps.length;
 
@@ -63,13 +132,17 @@ function StepProgress<T extends string>({
         const isCompleted = completedSteps.includes(step.id);
         const isCurrent = isRunning && index === currentStepIndex;
 
-        let indicatorContent: React.ReactNode;
+        let icon: React.ReactNode;
+        let iconClassName: string;
         if (isCompleted) {
-          indicatorContent = <span className="text-[#22903d]">✓</span>;
+          icon = <CompletedStepIcon shouldReduceMotion={shouldReduceMotion} />;
+          iconClassName = "text-[#22903d]";
         } else if (isCurrent) {
-          indicatorContent = <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#1c65be]" />;
+          icon = <CurrentStepIcon shouldReduceMotion={shouldReduceMotion} />;
+          iconClassName = "text-[#1c65be]";
         } else {
-          indicatorContent = <span className="inline-block h-2 w-2 rounded-full border border-foreground-muted" />;
+          icon = <PendingStepIcon />;
+          iconClassName = "text-foreground-muted";
         }
 
         let labelClassName: string;
@@ -82,18 +155,21 @@ function StepProgress<T extends string>({
         }
 
         return (
-          <div
+          <motion.div
             key={step.id}
             className="flex items-center gap-2 text-[10px]"
             style={{ fontFamily: "var(--font-space-mono)" }}
+            initial={shouldReduceMotion ? false : { opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut", delay: index * 0.03 }}
           >
             <span className="flex h-4 w-4 items-center justify-center">
-              {indicatorContent}
+              <span className={iconClassName}>{icon}</span>
             </span>
             <span className={labelClassName}>
               {step.label}
             </span>
-          </div>
+          </motion.div>
         );
       })}
     </div>
@@ -260,15 +336,27 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
           )}
         </button>
 
-        {(isRunning || workflowState.completedSteps.length > 0) && (
-          <div className="border-2 border-border bg-surface-elevated p-3">
-            <StepProgress
-              steps={SUMMARY_STEPS}
-              completedSteps={workflowState.completedSteps}
-              isRunning={isRunning}
-            />
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {(isRunning || workflowState.completedSteps.length > 0) && (
+            <motion.div
+              key="summary-progress"
+              className="border-2 border-border bg-surface-elevated"
+              initial={shouldReduceMotion ? false : { height: 0, opacity: 0, y: -4 }}
+              animate={{ height: "auto", opacity: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { height: 0, opacity: 0, y: -4 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut" }}
+            >
+              <div className="p-3">
+                <StepProgress
+                  steps={SUMMARY_STEPS}
+                  completedSteps={workflowState.completedSteps}
+                  isRunning={isRunning}
+                  shouldReduceMotion={shouldReduceMotion}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {workflowState.status === "completed" && (
           <div className="border-2 border-[#22903d] bg-[#e9f5ec] p-2 text-xs text-[#22903d]">
