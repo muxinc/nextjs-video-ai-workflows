@@ -8,6 +8,7 @@ interface HeaderProps {
 }
 
 export function Header({ currentPath }: HeaderProps) {
+  const showBrowse = currentPath !== "/";
   const showSearch = currentPath && currentPath !== "/";
 
   return (
@@ -32,15 +33,17 @@ export function Header({ currentPath }: HeaderProps) {
             </span>
           </Link>
 
-          <nav className="shrink-0 md:hidden">
-            <Link
-              href="/media"
-              className="flex items-center gap-1 border-3 border-border bg-accent px-5 py-2 text-sm font-bold uppercase tracking-wider shadow-[3px_3px_0_var(--border)] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--border)]"
-              style={{ fontFamily: "var(--font-space-mono)" }}
-            >
-              Browse
-            </Link>
-          </nav>
+          {showBrowse && (
+            <nav className="shrink-0 md:hidden">
+              <Link
+                href="/media"
+                className="flex items-center gap-1 border-3 border-border bg-accent px-5 py-2 text-sm font-bold uppercase tracking-wider shadow-[3px_3px_0_var(--border)] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--border)]"
+                style={{ fontFamily: "var(--font-space-mono)" }}
+              >
+                Browse
+              </Link>
+            </nav>
+          )}
         </div>
 
         {showSearch && (
@@ -49,15 +52,17 @@ export function Header({ currentPath }: HeaderProps) {
           </div>
         )}
 
-        <nav className="hidden shrink-0 md:block">
-          <Link
-            href="/media"
-            className="flex items-center gap-1 border-3 border-border bg-accent px-5 py-2 text-sm font-bold uppercase tracking-wider shadow-[3px_3px_0_var(--border)] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--border)]"
-            style={{ fontFamily: "var(--font-space-mono)" }}
-          >
-            Browse
-          </Link>
-        </nav>
+        {showBrowse && (
+          <nav className="hidden shrink-0 md:block">
+            <Link
+              href="/media"
+              className="flex items-center gap-1 border-3 border-border bg-accent px-5 py-2 text-sm font-bold uppercase tracking-wider shadow-[3px_3px_0_var(--border)] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--border)]"
+              style={{ fontFamily: "var(--font-space-mono)" }}
+            >
+              Browse
+            </Link>
+          </nav>
+        )}
       </div>
     </header>
   );

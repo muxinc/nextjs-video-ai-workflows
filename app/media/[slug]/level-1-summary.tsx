@@ -62,7 +62,9 @@ function ToneSelector({
             className={`tone-btn ${selectedTone === option.value ? "active" : ""}`}
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
-            [{option.label}]
+            [
+            {option.label}
+            ]
           </button>
         ))}
       </div>

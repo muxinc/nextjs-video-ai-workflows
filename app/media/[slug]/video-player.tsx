@@ -3,7 +3,7 @@
 import MuxPlayer from "@mux/mux-player-react";
 import { useCallback, useEffect } from "react";
 
-import { usePlayer } from "./player-context";
+import { usePlayer } from "./use-player";
 
 import type MuxPlayerElement from "@mux/mux-player";
 
@@ -61,4 +61,3 @@ export function VideoPlayer({
     />
   );
 }
-

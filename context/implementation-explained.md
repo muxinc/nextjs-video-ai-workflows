@@ -4,23 +4,23 @@ This document captures the Next.js implementation outline that supports the "Dem
 
 ---
 
-## The three integration levels (implementation view)
+## The three integration layers (implementation view)
 
 The demo is structured around three integration patterns. Each has distinct implementation characteristics:
 
-| Level | Pattern              | Implementation                                  | Vercel Workflow? |
-| ----- | -------------------- | ----------------------------------------------- | ---------------- |
-| **1** | Sync call            | Direct function call in route handler/action    | No               |
-| **2** | Basic async workflow | Single `@mux/ai` primitive in a Vercel Workflow | Yes (simple)     |
-| **3** | Custom workflow      | Multi-step orchestration with external tools    | Yes (complex)    |
+| Layer | Pattern    | Implementation                                   | Vercel Workflow? |
+| ----- | ---------- | ------------------------------------------------ | ---------------- |
+| **1** | Primitives | Call primitives directly in route handler/action | No               |
+| **2** | Workflows  | Run `@mux/ai` workflows durably via Vercel       | Yes (simple)     |
+| **3** | Connectors | Compose with external tools in orchestration     | Yes (complex)    |
 
-This section explains how each level is implemented.
+This section explains how each layer is implemented.
 
 ---
 
-## Level 1: Synchronous call (`getSummaryAndTags`)
+## Layer 1: Primitives (`getSummaryAndTags`)
 
-The simplest pattern: call the function directly from server-side code.
+The simplest pattern: call primitives directly from server-side code.
 
 ### Implementation
 
@@ -51,9 +51,9 @@ await db.media.update({ where: { muxAssetId: assetId }, data: { summary: result 
 
 ---
 
-## Level 2: Basic async workflow (`translateCaptions`, `translateAudio`)
+## Layer 2: Workflows (`translateCaptions`, `translateAudio`)
 
-Wrap a single `@mux/ai` primitive in a Vercel Workflow for reliability.
+Run `@mux/ai` workflows durably via Vercel Workflows for retries, progress tracking, and resumable execution.
 
 ### Implementation
 
@@ -112,20 +112,20 @@ export async function POST(request: Request) {
 
 - **Non-blocking**: `start()` returns immediately — the workflow runs in the background
 - **Resumable**: if the process crashes, Vercel Workflow resumes from last completed step
-- **Status tracking**: persist `WorkflowRun` records to surface progress in the UI
-- **Single primitive**: the workflow wraps one `@mux/ai` function
+- **Observable**: status tracking surfaces progress in the UI
+- **Durable**: the workflow wraps one `@mux/ai` function with reliability guarantees
 
 ### When to use this pattern
 
 - Operation takes significant time (> 10s)
 - Need retry/resume semantics
-- Want to show progress UI while work happens
+- Want observable progress UI while work happens
 
 ---
 
-## Level 3: Custom workflow (clip creation with Remotion)
+## Layer 3: Connectors (clip creation with Remotion)
 
-Orchestrate multiple primitives and external tools in a single workflow.
+Compose primitives, workflows, and external tools in a single orchestrated pipeline.
 
 ### Implementation
 
@@ -209,15 +209,15 @@ async function finalizeClip(clipId: string, videoUrl: string, posterUrl: string)
 - **Dependency management**: later steps depend on earlier step outputs
 - **External tool integration**: Remotion is not part of `@mux/ai`—we're composing it
 - **Parallel where possible**: translate multiple languages concurrently
-- **Complex status**: UI shows which step is currently running
+- **Observable pipeline**: UI shows which step is currently running
 
-### Why Remotion lives here (not in Level 1 or 2)
+### Why Remotion lives here (not in Layer 1 or 2)
 
-Remotion is an external tool, not an `@mux/ai` primitive. Placing it in the custom workflow:
+Remotion is an external tool, not an `@mux/ai` primitive. Placing it in the connectors layer:
 
 - Shows how to **extend** beyond what the SDK provides
 - Demonstrates the **orchestration power** of Vercel Workflows
-- Keeps Level 1 and 2 focused on pure `@mux/ai` usage
+- Keeps Layer 1 and 2 focused on pure `@mux/ai` usage
 
 ---
 
@@ -225,22 +225,22 @@ Remotion is an external tool, not an `@mux/ai` primitive. Placing it in the cust
 
 Per `context/application-explained.md`, this demo uses three primitives exported by `@mux/ai/workflows`:
 
-### `getSummaryAndTags` (Level 1)
+### `getSummaryAndTags` (Layer 1)
 
 - **Purpose**: extract a title, description, and up to 10 keywords from storyboard + transcript.
-- **Integration level**: 1 (sync call)
+- **Integration layer**: 1 (primitives)
 - **How**: direct call in a server action or route handler, persist result to `Media`.
 
-### `translateCaptions` (Level 2 and 3)
+### `translateCaptions` (Layer 2 and 3)
 
 - **Purpose**: translate a ready Mux text track (`.vtt`) from `sourceLang` to one or more `targetLangs`.
-- **Integration level**: 2 (basic workflow) or 3 (as a step in custom workflow)
+- **Integration layer**: 2 (workflows) or 3 (as a step in connectors)
 - **How**: wrapped in `"use step"` within a Vercel Workflow; uploads translated VTT to Mux as a new text track.
 
-### `translateAudio` (Level 2 and 3)
+### `translateAudio` (Layer 2 and 3)
 
 - **Purpose**: dub the default audio track into a target language.
-- **Integration level**: 2 (basic workflow) or 3 (as a step in custom workflow)
+- **Integration layer**: 2 (workflows) or 3 (as a step in connectors)
 - **How**: wrapped in `"use step"` within a Vercel Workflow; uploads dubbed audio to Mux as a new audio track.
 
 ---
@@ -331,30 +331,30 @@ We’ll keep Mux reads behind a small set of server-only entrypoints:
 
 The guiding rule: the UI should never talk directly to Mux with secret credentials; it should call our own routes/actions which use the `@mux/mux-node` client internally.
 
-## Remotion: the external tool in Level 3
+## Remotion: the external tool in Layer 3
 
-Remotion is **not** part of `@mux/ai`—it's an external video rendering tool that we integrate into the Level 3 custom workflow. This is intentional: it demonstrates how to compose `@mux/ai` primitives with other tools.
+Remotion is **not** part of `@mux/ai`—it's an external video rendering tool that we integrate into the Layer 3 connectors. This is intentional: it demonstrates how to compose `@mux/ai` primitives with other tools.
 
-### Why Remotion is in Level 3 (custom workflow)
+### Why Remotion is in Layer 3 (connectors)
 
 The demo's teaching structure requires this placement:
 
-- **Level 1**: Pure `@mux/ai`, sync call, no external tools
-- **Level 2**: Pure `@mux/ai`, wrapped in Vercel Workflow, no external tools
-- **Level 3**: `@mux/ai` primitives + external tools (Remotion), orchestrated together
+- **Layer 1**: Pure `@mux/ai`, call primitives directly, no external tools
+- **Layer 2**: Pure `@mux/ai`, run workflows durably, no external tools
+- **Layer 3**: `@mux/ai` primitives + external tools (Remotion), composed together
 
-If we used Remotion in Level 2, it would blur the distinction between "basic workflow wrapping a single primitive" and "custom workflow composing multiple tools."
+If we used Remotion in Layer 2, it would blur the distinction between "running a workflow durably" and "composing with external tools."
 
 ### Two modes: preview + render
 
 This app uses Remotion in two modes:
 
 1. **Preview**: an instant, interactive preview in the browser using `@remotion/player` (runs client-side, no workflow needed)
-2. **Render**: a server-side render to MP4 (+ poster) as a step in the Level 3 workflow
+2. **Render**: a server-side render to MP4 (+ poster) as a step in the Layer 3 workflow
 
 The approach is modeled after the Remotion "Next.js App Dir template": [`remotion-dev/template-next-app-dir`](https://github.com/remotion-dev/template-next-app-dir).
 
-**Key insight: rendering is optional.** The preview phase is "free"—users can iterate on timing, styling, language, and layout as many times as they want without triggering any backend work or creating assets prematurely. Only when the user clicks "Render clip" does the Level 3 workflow start.
+**Key insight: rendering is optional.** The preview phase is "free"—users can iterate on timing, styling, language, and layout as many times as they want without triggering any backend work or creating assets prematurely. Only when the user clicks "Render clip" does the Layer 3 workflow start.
 
 ### Composition model
 
@@ -373,7 +373,7 @@ The "Create clip" page renders a Remotion Player that is powered by the same pro
 - The page assembles the full props object from user inputs + persisted workflow outputs (track IDs, VTT URLs, dubbed audio URLs).
 - The Player updates live as props change, so users can iterate quickly (captions on/off, layout preset, language variant, etc.).
 
-Important: preview is **non-blocking** and does not require any render infrastructure—it's just React running the composition in the browser. This is not part of the workflow; it's a pure client-side feature.
+Important: preview is **non-blocking** and does not require any render infrastructure—it's just React running the composition in the browser. This is not part of the Layer 3 workflow; it's a pure client-side feature.
 
 #### Why preview-first matters
 
@@ -395,9 +395,9 @@ This two-phase approach lets users experiment freely before committing to the mo
 
 All without triggering any backend work or creating assets they might not want.
 
-### Rendering (Level 3 workflow step)
+### Rendering (Layer 3 workflow step)
 
-Rendering is a **step** in the Level 3 custom workflow. Per the [Vercel Workflow docs](https://useworkflow.dev/docs/getting-started/next), steps are separate functions:
+Rendering is a **step** in the Layer 3 connectors workflow. Per the [Vercel Workflow docs](https://useworkflow.dev/docs/getting-started/next), steps are separate functions:
 
 ```typescript
 // Called from createClipWorkflow:
@@ -449,7 +449,7 @@ The workflow structure stays the same either way; only the render backend change
 
 - `POST /api/clips/create`
   - Creates `Clip` record as `queued`
-  - Starts the Level 3 orchestration workflow
+  - Starts the Layer 3 orchestration workflow
   - Immediately returns `clipId` and initial status
 - `GET /api/media/[id]/clips`
   - Returns clips with `status`, `renderedUrl`, `posterUrl` for UI progress + playback
@@ -526,20 +526,20 @@ interface WorkflowProgress {
 
 #### Why this works
 
-- **Level 1 (sync)**: No persistence needed — results render immediately
-- **Level 2 (async)**: localStorage tracks progress; Mux asset stores the result (new track)
-- **Level 3 (custom)**: localStorage tracks multi-step progress; final artifacts stored in S3/Mux
+- **Layer 1 (Primitives)**: No persistence needed — results render immediately
+- **Layer 2 (Workflows)**: localStorage tracks progress; Mux asset stores the result (new track)
+- **Layer 3 (Connectors)**: localStorage tracks multi-step progress; final artifacts stored in S3/Mux
 
 ---
 
 ## Suggested build sequence (TODO checklist)
 
-This ordering builds the app level-by-level so the teaching progression is always visible:
+This ordering builds the app layer-by-layer so the teaching progression is always visible:
 
 1. Foundation (browse + detail)
-2. Level 1 implementation (sync summarization)
-3. Level 2 implementation (basic async workflows)
-4. Level 3 implementation (custom workflow with Remotion)
+2. Layer 1 implementation (primitives)
+3. Layer 2 implementation (workflows)
+4. Layer 3 implementation (connectors with Remotion)
 
 ### 0) Project & env foundation
 
@@ -572,9 +572,9 @@ This ordering builds the app level-by-level so the teaching progression is alway
 - [x] **UI: `/media/[slug]` detail**
   - [x] Player using the asset's playback ID
   - [x] Transcript panel with VTT cues side-by-side with player
-  - [x] Placeholder sections for Level 1, 2, and 3 (even if empty initially)
+  - [x] Placeholder sections for Layer 1, 2, and 3 (even if empty initially)
 
-### 3) Level 1: Sync summarization (`getSummaryAndTags`)
+### 3) Layer 1: Primitives (`getSummaryAndTags`)
 
 - [x] **Implement "Generate summary" path**
   - [x] Server action calls `getSummaryAndTags(assetId, options)` synchronously
@@ -585,7 +585,7 @@ This ordering builds the app level-by-level so the teaching progression is alway
 - [x] **Optional: show inputs used**
   - [x] Display storyboard preview and transcript excerpt in a "How it was made" disclosure
 
-### 4) Level 2: Basic async workflows (Vercel Workflow infra)
+### 4) Layer 2: Workflows (Vercel Workflow infra)
 
 - [ ] **Wire Vercel Workflow in Next.js**
   - [ ] Ensure workflow entrypoints exist under `workflows/*` using `"use workflow"`
@@ -596,33 +596,33 @@ This ordering builds the app level-by-level so the teaching progression is alway
 - [ ] **UI status callouts**
   - [ ] For each action button: show `Queued / Running / Ready / Failed` inline
   - [ ] Poll workflow status and update localStorage
-  - [ ] Clear "Level 2: Async workflow" label in UI
+  - [ ] Clear "Layer 2: Workflows" label in UI
 
-### 5) Level 2: Caption translation + audio dubbing
+### 5) Layer 2: Caption translation + audio dubbing
 
 - [ ] **Caption translation flow**
   - [ ] Identify the canonical source text track for an asset (the "ready" English captions)
-  - [ ] `translateCaptionsWorkflow` wraps `translateCaptions` in a Vercel Workflow
+  - [ ] `translateCaptionsWorkflow` runs `translateCaptions` durably via Vercel Workflow
   - [ ] Workflow attaches translated track directly to the Mux asset (`uploadToMux: true`)
   - [ ] Refresh asset data to see new track in player selector
 - [ ] **Audio dubbing flow**
-  - [ ] `translateAudioWorkflow` wraps `translateAudio` in a Vercel Workflow
+  - [ ] `translateAudioWorkflow` runs `translateAudio` durably via Vercel Workflow
   - [ ] Workflow attaches dubbed audio track directly to the Mux asset
   - [ ] Refresh asset data to see new track in player selector
 
-### 6) Level 3: Clip creation UI (Remotion preview — "free" iteration)
+### 6) Layer 3: Clip creation UI (Remotion preview — "free" iteration)
 
 - [ ] **Create `/media/[slug]/clips/new` UI**
   - [ ] Inputs: start/end, preset (9:16/1:1/16:9), caption lang, audio lang, styling options
   - [ ] Always-on Remotion Player preview (client-side, no render cost)
   - [ ] Preview updates live as user changes inputs — unlimited iteration before committing
-  - [ ] Clear "Level 3: Custom workflow" label in UI
+  - [ ] Clear "Layer 3: Connectors" label in UI
   - [ ] "Render clip" CTA only triggers workflow when user is satisfied with preview
 - [ ] **Define composition props contract**
   - [ ] `playbackId`, timing, caption source (VTT/track), optional dubbed audio override, branding preset
   - [ ] Same props power both preview (client) and render (server)
 
-### 7) Level 3: Custom workflow (full orchestration)
+### 7) Layer 3: Connectors (full orchestration)
 
 - [ ] **`POST /api/clips/create`**
   - [ ] Starts `createClipWorkflow` which orchestrates:
@@ -638,10 +638,10 @@ This ordering builds the app level-by-level so the teaching progression is alway
 
 ### 8) Polish & showcase readiness
 
-- [ ] **Three-level framing is explicit in UI**
-  - [ ] Level 1: Sync call (summary/tags)
-  - [ ] Level 2: Basic workflow (captions, dubbing)
-  - [ ] Level 3: Custom workflow (rendered clips)
+- [ ] **Three-layer framing is explicit in UI**
+  - [ ] Layer 1: Primitives (summary/tags)
+  - [ ] Layer 2: Workflows (captions, dubbing)
+  - [ ] Layer 3: Connectors (rendered clips)
 - [ ] **Seed content strategy**
   - [ ] Ensure staging Mux account has 6–12 talks with ready English caption tracks
-  - [ ] Pre-run Level 2 on select talks (1–2 translated captions, 1 dubbed audio) so tracks exist on first load
+  - [ ] Pre-run Layer 2 on select talks (1–2 translated captions, 1 dubbed audio) so tracks exist on first load

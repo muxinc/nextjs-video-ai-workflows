@@ -3,15 +3,15 @@ import Link from "next/link";
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
 
-function LevelCard({
-  level,
+function LayerCard({
+  layer,
   badge,
   badgeClass,
   title,
   description,
   example,
 }: {
-  level: string;
+  layer: string;
   badge: string;
   badgeClass: string;
   title: string;
@@ -26,7 +26,7 @@ function LevelCard({
             {badge}
           </span>
           <span className="text-[10px] font-bold tracking-[0.2em] text-foreground-muted">
-            {level}
+            {layer}
           </span>
         </div>
       </div>
@@ -62,12 +62,6 @@ export default function Home() {
         <div className="mx-auto max-w-6xl space-y-12">
           {/* Hero Panel */}
           <section className="panel-brutal overflow-hidden" aria-labelledby="landing-hero">
-            <div className="stripes-accent panel-brutal-header text-foreground">
-              <h2 id="landing-hero" style={{ fontFamily: "var(--font-syne)" }}>
-                DEMO APP / REFERENCE ARCHITECTURE
-              </h2>
-            </div>
-
             <div className="grid gap-10 p-8 md:grid-cols-[1.2fr_0.8fr] md:items-start">
               <div className="space-y-6">
                 <div className="space-y-3">
@@ -75,7 +69,7 @@ export default function Home() {
                     className="text-xs font-bold uppercase tracking-[0.3em] text-foreground-muted"
                     style={{ fontFamily: "var(--font-space-mono)" }}
                   >
-                    Video intelligence pipelines
+                    VIDEO AI INFRASTRUCTURE
                   </p>
                   <h1
                     className="text-4xl font-extrabold tracking-tight md:text-5xl"
@@ -86,7 +80,7 @@ export default function Home() {
                 </div>
 
                 <p className="max-w-2xl text-lg leading-relaxed text-foreground-muted md:text-xl">
-                  Build video intelligence pipelines with
+                  Ship video intelligence that holds up at scale with
                   {" "}
                   <a
                     href="https://github.com/muxinc/ai"
@@ -107,7 +101,7 @@ export default function Home() {
                   >
                     vercel Workflow DevKit
                   </a>
-                  . Three integration levels, one consistent UX.
+                  . Three integration layers. One consistent developer experience.
                 </p>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -132,25 +126,25 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="card-flat overflow-hidden">
                   <div className="panel-brutal-header bg-background-dark text-white" style={{ fontFamily: "var(--font-space-mono)" }}>
-                    QUICK START
+                    Reference pipeline
                   </div>
                   <div className="p-5">
                     <ul className="space-y-3 text-sm text-foreground-muted">
                       <li className="flex items-start gap-3">
                         <span className="mt-1 inline-block h-2.5 w-2.5 shrink-0 border border-border bg-accent" />
-                        Pick a talk from our Demuxed library.
+                        Start with a real talk from the Demuxed video library.
                       </li>
                       <li className="flex items-start gap-3">
                         <span className="mt-1 inline-block h-2.5 w-2.5 shrink-0 border border-border bg-[#ffb202]" />
-                        Run a Level 1 workflow to generate a summary and tags.
+                        Generate a summary and tags from the storyboard and transcript.
                       </li>
                       <li className="flex items-start gap-3">
                         <span className="mt-1 inline-block h-2.5 w-2.5 shrink-0 border border-border bg-[#1c65be]" />
-                        Kick off Level 2 workflows (captions/audio) to translate the captions and dub audio.
+                        Localize content with translated captions and dubbed audio tracks.
                       </li>
                       <li className="flex items-start gap-3">
                         <span className="mt-1 inline-block h-2.5 w-2.5 shrink-0 border border-border bg-[#22903d]" />
-                        Compose multi-step pipelines for Level 3 (clips + render) to create a social clip.
+                        Create distributable social clips that can reach broader audiences.
                       </li>
                     </ul>
                   </div>
@@ -168,11 +162,11 @@ export default function Home() {
                       <p className="mt-2 text-sm leading-relaxed text-foreground-muted">
                         You&apos;re not just &quot;running AI.&quot;
                         {" "}
-                        You&apos;re building a durable pipeline where every step is observable, retryable, and easy to iterate on—right next to the video it affects.
+                        You&apos;re building reliable pipelines where every step is observable and retryable, right alongside the videos they transform.
                       </p>
                     </div>
 
-                    <div className="flex bg-accent h-10 w-10 shrink-0 items-center justify-center border-2 border-border">
+                    <div className="flex bg-yellow-400 h-10 w-10 shrink-0 items-center justify-center border-2 border-border">
                       <svg className="h-5 w-5 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                         <path strokeLinecap="square" strokeLinejoin="miter" d="M12 2a7 7 0 00-4 12.74V18a2 2 0 002 2h4a2 2 0 002-2v-3.26A7 7 0 0012 2z" />
                         <path strokeLinecap="square" strokeLinejoin="miter" d="M10 22h4" />
@@ -184,40 +178,40 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Three Level Cards */}
-          <section aria-labelledby="landing-levels">
+          {/* Three Layer Cards */}
+          <section aria-labelledby="landing-layers">
             <div
               className="section-header-brutal stripes-dark text-white"
-              id="landing-levels"
+              id="landing-layers"
               style={{ fontFamily: "var(--font-syne)" }}
             >
-              THREE INTEGRATION LEVELS
+              THREE INTEGRATION LAYERS
             </div>
 
             <div className="mt-6 grid gap-6 md:grid-cols-3">
-              <LevelCard
-                level="LEVEL 1"
+              <LayerCard
+                layer="LAYER 1"
                 badge="Primitives"
                 badgeClass="badge-sync"
-                title="Direct Function Calls"
-                description="Fetch and transform Mux video assets like storyboards and transcripts to be used in workflows."
-                example="fetchTranscriptForAsset(assetId)"
+                title="Call primitives directly"
+                description="Low-level building blocks for video intelligence, from fetching transcripts to generating storyboards you can compose into pipelines later."
+                example="fetchTranscriptForAsset"
               />
-              <LevelCard
-                level="LEVEL 2"
+              <LayerCard
+                layer="LAYER 2"
                 badge="Workflows"
                 badgeClass="badge-async"
-                title="Leverage Async Workflows"
-                description="Wrap primitives in Vercel Workflows for retries, durable execution, and progress tracking using preferred workflows."
-                example="translateCaptions / translateAudio"
+                title="Run workflows durably"
+                description="@mux/ai ships ready-made workflows for video intelligence. Run them on Vercel Workflows for retries, progress tracking, and resumable execution."
+                example="translateCaptions"
               />
-              <LevelCard
-                level="LEVEL 3"
+              <LayerCard
+                layer="LAYER 3"
                 badge="Connectors"
                 badgeClass="badge-custom"
-                title="Compose Custom Workflows"
-                description="Orchestrate multiple primitives, workflows, optional connectors and external tooling (e.g. Remotion) to produce new media outputs."
-                example="Automated social clip creation"
+                title="Compose with connectors"
+                description="Connect primitives and workflows to external tools like Eleven labs and Remotion to render, publish, and generate new media outputs."
+                example="Localized social clip automation"
               />
             </div>
           </section>

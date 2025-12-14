@@ -1,9 +1,8 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
-
-import { motion, useReducedMotion } from "motion/react";
 
 interface TalkCardProps {
   slug: string;
@@ -141,5 +140,3 @@ export function TalkCard({ slug, title, playbackId, topics }: TalkCardProps) {
     </Link>
   );
 }
-
-
