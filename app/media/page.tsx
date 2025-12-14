@@ -4,10 +4,8 @@ import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
 import { getPlaybackIdForAsset } from "@/app/lib/mux";
 import { createClient } from "@/app/lib/supabase/server";
-import type { Tables } from "@/app/lib/supabase/types";
 import { TalkCard } from "@/app/media/talk-card";
-
-type Video = Tables<"videos">;
+import { getVideoTitle } from "@/app/media/utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -27,17 +25,6 @@ interface PaginationProps {
 
 interface MediaPageProps {
   searchParams: Promise<{ page?: string }>;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ─────────────────────────────────────────────────────────────────────────────
-
-function getVideoTitle(video: Video): string {
-  if (video.title) {
-    return video.title;
-  }
-  return `Talk ${video.id.slice(0, 8)}`;
 }
 
 /**

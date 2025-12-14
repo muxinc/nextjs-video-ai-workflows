@@ -2,7 +2,7 @@
 
 import { use } from "react";
 
-import { PlayerContext } from "./player-context-value";
+import { PlayerContext } from "./context";
 
 export function usePlayer() {
   const context = use(PlayerContext);

@@ -1,7 +1,7 @@
 import { getWritable } from "workflow";
 import { start } from "workflow/api";
 
-import type { CaptionStepId } from "@/app/media/[slug]/layer-2-constants";
+import type { CaptionStepId } from "@/app/media/[slug]/localization/constants";
 import { translateCaptions } from "@mux/ai/workflows";
 
 import { closeStream, sleepMs, writeToStream } from "./workflow-progress";

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { PlayerContext } from "./player-context-value";
+import { PlayerContext } from "./context";
 
 import type MuxPlayerElement from "@mux/mux-player";
 

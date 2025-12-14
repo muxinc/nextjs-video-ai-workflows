@@ -3,12 +3,15 @@
 import { getRun, start } from "workflow/api";
 
 import { env } from "@/app/lib/env";
+import type { WorkflowStatus } from "@/app/media/types";
 import { getSummaryAndTagsWorkflow } from "@/workflows/get-summary-and-tags";
 import type { GetSummaryAndTagsResult, SummaryStepId, SummaryWorkflowResult } from "@/workflows/get-summary-and-tags";
 
+import { mapWorkflowStatus, readProgressEvents } from "../workflows-panel/helpers";
+
 export type SummaryTone = "normal" | "professional" | "sassy";
 
-export type SummaryStatus = "idle" | "starting" | "running" | "completed" | "failed";
+export type SummaryStatus = WorkflowStatus;
 export type SummaryResult = NonNullable<GetSummaryAndTagsResult>;
 
 interface ProgressEvent<TStep extends string> {
@@ -45,62 +48,6 @@ function getProviderConfig() {
   }
 
   return null;
-}
-
-function mapWorkflowStatus(status: string): SummaryStatus {
-  if (status === "pending") {
-    return "starting";
-  }
-  if (status === "running") {
-    return "running";
-  }
-  if (status === "completed") {
-    return "completed";
-  }
-  if (status === "failed") {
-    return "failed";
-  }
-  return "failed";
-}
-
-async function readProgressEvents<TEvent extends { type: string }>(
-  stream: ReadableStream<TEvent>,
-): Promise<TEvent[]> {
-  const reader = stream.getReader();
-  const events: TEvent[] = [];
-
-  try {
-    for (let i = 0; i < 50; i++) {
-      const readPromise = reader.read();
-      readPromise.catch(() => {});
-
-      const next = await Promise.race([
-        readPromise,
-        new Promise<"timeout">(resolve => setTimeout(() => resolve("timeout"), 50)),
-      ]);
-
-      if (next === "timeout") {
-        break;
-      }
-
-      if (next.done) {
-        break;
-      }
-
-      if (next.value) {
-        events.push(next.value);
-      }
-    }
-  } finally {
-    // Always release the reader lock to prevent listener accumulation
-    try {
-      reader.releaseLock();
-    } catch {
-      // ignore - reader may already be released
-    }
-  }
-
-  return events;
 }
 
 export async function startSummaryWorkflowAction(

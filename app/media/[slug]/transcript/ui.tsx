@@ -3,17 +3,21 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { searchTranscript } from "./transcript-actions";
+import type { TranscriptCue } from "@/app/media/types";
+import { formatTime } from "@/app/media/utils";
+
+import { usePlayer } from "../player/use-player";
+
+import { searchTranscript } from "./actions";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface TranscriptCue {
-  id: string;
-  startTime: number;
-  endTime: number;
-  text: string;
+interface SyncedTranscriptProps {
+  cues: TranscriptCue[];
+  muxAssetId: string;
+  title?: string;
 }
 
 interface TranscriptPanelProps {
@@ -25,20 +29,10 @@ interface TranscriptPanelProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
+// TranscriptPanel - Core transcript UI
 // ─────────────────────────────────────────────────────────────────────────────
 
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: TranscriptPanelProps) {
+function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: TranscriptPanelProps) {
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [scrollDirection, setScrollDirection] = useState<"up" | "down">("up");
   const [searchQuery, setSearchQuery] = useState("");
@@ -597,5 +591,27 @@ export function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, tit
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SyncedTranscript - Player-connected wrapper
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function SyncedTranscript({ cues, muxAssetId, title }: SyncedTranscriptProps) {
+  const { currentTime, seekTo } = usePlayer();
+
+  if (cues.length === 0) {
+    return null;
+  }
+
+  return (
+    <TranscriptPanel
+      cues={cues}
+      currentTime={currentTime}
+      onSeek={seekTo}
+      muxAssetId={muxAssetId}
+      title={title}
+    />
   );
 }

@@ -6,7 +6,9 @@ import { findAudioTrack, findTextTrack, getAsset } from "@/app/lib/mux";
 import { translateAudioWorkflow } from "@/workflows/translate-audio";
 import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 
-import type { AudioStepId, CaptionStepId, TranslationStatus } from "./layer-2-constants";
+import { mapWorkflowStatus, readProgressEvents } from "../workflows-panel/helpers";
+
+import type { AudioStepId, CaptionStepId, TranslationStatus } from "./constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types (interfaces can be exported from server action files)
@@ -41,66 +43,6 @@ export interface TranslationResult<TStep extends string> {
 
 export type CaptionTranslationResult = TranslationResult<CaptionStepId>;
 export type AudioTranslationResult = TranslationResult<AudioStepId>;
-
-function mapWorkflowStatus(status: string): TranslationStatus {
-  if (status === "pending") {
-    return "starting";
-  }
-  if (status === "running") {
-    return "running";
-  }
-  if (status === "completed") {
-    return "completed";
-  }
-  if (status === "failed") {
-    return "failed";
-  }
-  // paused/cancelled/unknown: treat as failed for UI
-  return "failed";
-}
-
-async function readProgressEvents<TEvent extends { type: string }>(
-  stream: ReadableStream<TEvent>,
-): Promise<TEvent[]> {
-  const reader = stream.getReader();
-  const events: TEvent[] = [];
-
-  // Read as many buffered events as are immediately available.
-  // Guard with a short timeout so we never hang a server action.
-  try {
-    for (let i = 0; i < 50; i++) {
-      const readPromise = reader.read();
-      // Attach no-op catch to prevent unhandled rejection if timeout wins
-      readPromise.catch(() => {});
-
-      const next = await Promise.race([
-        readPromise,
-        new Promise<"timeout">(resolve => setTimeout(() => resolve("timeout"), 50)),
-      ]);
-
-      if (next === "timeout") {
-        break;
-      }
-
-      if (next.done) {
-        break;
-      }
-
-      if (next.value) {
-        events.push(next.value);
-      }
-    }
-  } finally {
-    // Always release the reader lock to prevent listener accumulation
-    try {
-      reader.releaseLock();
-    } catch {
-      // ignore - reader may already be released
-    }
-  }
-
-  return events;
-}
 
 async function startWorkflowAction<TArgs extends unknown[]>(
   workflow: (...args: TArgs) => Promise<unknown>,

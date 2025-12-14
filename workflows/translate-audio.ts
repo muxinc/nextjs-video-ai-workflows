@@ -2,7 +2,7 @@ import { getWritable } from "workflow";
 import { start } from "workflow/api";
 
 import { findAudioTrack, getAsset } from "@/app/lib/mux";
-import type { AudioStepId } from "@/app/media/[slug]/layer-2-constants";
+import type { AudioStepId } from "@/app/media/[slug]/localization/constants";
 import { translateAudio } from "@mux/ai/workflows";
 
 import { closeStream, sleepMs, writeToStream } from "./workflow-progress";

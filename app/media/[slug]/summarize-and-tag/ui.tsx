@@ -11,10 +11,13 @@ import {
   markWorkflowRunning,
   startWorkflow as persistWorkflowStart,
 } from "@/app/lib/workflow-state";
+import { mergeSteps } from "@/app/media/[slug]/workflows-panel/helpers";
 import type { SummaryStepId } from "@/workflows/get-summary-and-tags";
 
-import type { SummaryStatus, SummaryTone } from "./layer-1-actions";
-import { pollSummaryWorkflowAction, startSummaryWorkflowAction } from "./layer-1-actions";
+import { StatusBadge, StepProgress } from "../workflows-panel/ui";
+
+import type { SummaryStatus, SummaryTone } from "./actions";
+import { pollSummaryWorkflowAction, startSummaryWorkflowAction } from "./actions";
 
 const TONE_OPTIONS: { value: SummaryTone; label: string }[] = [
   { value: "normal", label: "NORMAL" },
@@ -29,160 +32,6 @@ const SUMMARY_STEPS: readonly { id: SummaryStepId; label: string }[] = [
   { id: "generate", label: "Generating summary + tags" },
   { id: "finalize", label: "Finalizing output" },
 ] as const;
-
-function StatusBadge({ status }: { status: SummaryStatus }) {
-  const config: Record<SummaryStatus, { label: string; className: string }> = {
-    idle: { label: "READY", className: "bg-surface-elevated text-foreground-muted" },
-    starting: { label: "QUEUED", className: "bg-[#fff8e6] text-[#b8860b]" },
-    running: { label: "RUNNING", className: "bg-[#e8f0fa] text-[#1c65be]" },
-    completed: { label: "DONE", className: "bg-[#e9f5ec] text-[#22903d]" },
-    failed: { label: "FAILED", className: "bg-[#fde8e8] text-[#dc2626]" },
-  };
-
-  const { label, className } = config[status];
-
-  return (
-    <span
-      className={`inline-flex items-center border-2 border-border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${className}`}
-      style={{ fontFamily: "var(--font-space-mono)" }}
-    >
-      {status === "running" && (
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
-      )}
-      {label}
-    </span>
-  );
-}
-
-function CompletedStepIcon({ shouldReduceMotion }: { shouldReduceMotion: boolean | null }) {
-  return (
-    <motion.svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      aria-hidden="true"
-    >
-      <motion.path
-        d="M3 7.5 L6 10.2 L11 3.8"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="square"
-        strokeLinejoin="miter"
-        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: shouldReduceMotion ? 0 : 0.22, ease: "easeOut" }}
-      />
-    </motion.svg>
-  );
-}
-
-function CurrentStepIcon({ shouldReduceMotion }: { shouldReduceMotion: boolean | null }) {
-  const animate = shouldReduceMotion ?
-      { opacity: 1 } :
-      { opacity: [1, 0.4, 1], scale: [1, 1.25, 1] };
-
-  const transition = shouldReduceMotion ?
-      { duration: 0 } :
-      { duration: 0.9, repeat: Number.POSITIVE_INFINITY, ease: [0.42, 0, 0.58, 1] as const };
-
-  return (
-    <motion.svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      aria-hidden="true"
-    >
-      <motion.circle
-        cx="7"
-        cy="7"
-        r="3"
-        fill="currentColor"
-        initial={false}
-        animate={animate}
-        transition={transition}
-      />
-    </motion.svg>
-  );
-}
-
-function PendingStepIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      aria-hidden="true"
-    >
-      <circle cx="7" cy="7" r="3.5" stroke="currentColor" strokeWidth="1" />
-    </svg>
-  );
-}
-
-function StepProgress<T extends string>({
-  steps,
-  completedSteps,
-  isRunning,
-  shouldReduceMotion,
-}: {
-  steps: readonly { id: T; label: string }[];
-  completedSteps: T[];
-  isRunning: boolean;
-  shouldReduceMotion: boolean | null;
-}) {
-  const currentStepIndex = completedSteps.length;
-
-  return (
-    <div className="space-y-1.5">
-      {steps.map((step, index) => {
-        const isCompleted = completedSteps.includes(step.id);
-        const isCurrent = isRunning && index === currentStepIndex;
-
-        let icon: React.ReactNode;
-        let iconClassName: string;
-        if (isCompleted) {
-          icon = <CompletedStepIcon shouldReduceMotion={shouldReduceMotion} />;
-          iconClassName = "text-[#22903d]";
-        } else if (isCurrent) {
-          icon = <CurrentStepIcon shouldReduceMotion={shouldReduceMotion} />;
-          iconClassName = "text-[#1c65be]";
-        } else {
-          icon = <PendingStepIcon />;
-          iconClassName = "text-foreground-muted";
-        }
-
-        let labelClassName: string;
-        if (isCompleted) {
-          labelClassName = "text-[#22903d]";
-        } else if (isCurrent) {
-          labelClassName = "font-bold text-[#1c65be]";
-        } else {
-          labelClassName = "text-foreground-muted";
-        }
-
-        return (
-          <motion.div
-            key={step.id}
-            className="flex items-center gap-2 text-[10px]"
-            style={{ fontFamily: "var(--font-space-mono)" }}
-            initial={shouldReduceMotion ? false : { opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut", delay: index * 0.03 }}
-          >
-            <span className="flex h-4 w-4 items-center justify-center">
-              <span className={iconClassName}>{icon}</span>
-            </span>
-            <span className={labelClassName}>
-              {step.label}
-            </span>
-          </motion.div>
-        );
-      })}
-    </div>
-  );
-}
 
 function TagChip({ tag }: { tag: string }) {
   return (
@@ -255,6 +104,7 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamIndexRef = useRef(0);
+  const isPollInFlightRef = useRef(false);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -263,42 +113,48 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
     }
   }, []);
 
-  const mergeSteps = useCallback((prev: SummaryStepId[], next: SummaryStepId[]) => {
-    return next.length ? Array.from(new Set([...prev, ...next])) : prev;
-  }, []);
-
   const pollStatus = useCallback(async (runId: string) => {
-    const result = await pollSummaryWorkflowAction(runId, streamIndexRef.current);
-    streamIndexRef.current = result.nextIndex;
+    // Guard against concurrent polls to prevent race conditions with streamIndexRef
+    if (isPollInFlightRef.current) {
+      return;
+    }
+    isPollInFlightRef.current = true;
 
-    if (result.status === "completed" || result.status === "failed") {
-      stopPolling();
-      if (result.status === "completed") {
-        markWorkflowCompleted(assetId, "summarizeAndTag", undefined);
-      } else {
-        markWorkflowFailed(assetId, "summarizeAndTag", undefined, result.error || "Workflow failed.");
-        clearWorkflowProgress(assetId, "summarizeAndTag", undefined);
+    try {
+      const result = await pollSummaryWorkflowAction(runId, streamIndexRef.current);
+      streamIndexRef.current = result.nextIndex;
+
+      if (result.status === "completed" || result.status === "failed") {
+        stopPolling();
+        if (result.status === "completed") {
+          markWorkflowCompleted(assetId, "summarizeAndTag", undefined);
+        } else {
+          markWorkflowFailed(assetId, "summarizeAndTag", undefined, result.error || "Workflow failed.");
+          clearWorkflowProgress(assetId, "summarizeAndTag", undefined);
+        }
+        setWorkflowState(prev => ({
+          ...prev,
+          status: result.status,
+          completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
+          runId,
+          error: result.error,
+          result: result.result,
+        }));
+        return;
+      }
+
+      if (result.status === "running") {
+        markWorkflowRunning(assetId, "summarizeAndTag");
       }
       setWorkflowState(prev => ({
         ...prev,
         status: result.status,
         completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
-        runId,
-        error: result.error,
-        result: result.result,
       }));
-      return;
+    } finally {
+      isPollInFlightRef.current = false;
     }
-
-    if (result.status === "running") {
-      markWorkflowRunning(assetId, "summarizeAndTag");
-    }
-    setWorkflowState(prev => ({
-      ...prev,
-      status: result.status,
-      completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
-    }));
-  }, [assetId, mergeSteps, stopPolling]);
+  }, [assetId, stopPolling]);
 
   const startWorkflow = useCallback(() => {
     stopPolling();
