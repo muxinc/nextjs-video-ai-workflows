@@ -4,6 +4,8 @@ import { start } from "workflow/api";
 import type { AudioStepId } from "@/app/media/[slug]/layer-2-constants";
 import { translateAudio } from "@mux/ai/workflows";
 
+import { closeStream, sleepMs, writeToStream } from "./workflow-progress";
+
 export type TranslateAudioResult = Awaited<ReturnType<typeof translateAudio>>;
 export type { AudioStepId };
 
@@ -28,21 +30,16 @@ export async function translateAudioWorkflow(
 
   const completedSteps: AudioStepId[] = [];
   const progress = getWritable<AudioProgressEvent>({ namespace: "progress" });
-  let streamClosed = false;
 
   try {
-    // Step 1: Prepare
     await prepareAudio(progress, assetId, targetLang);
     completedSteps.push("prepare");
 
-    // Step 2: Generate dubbed audio (start the @mux/ai workflow using start() and await result)
     const result = await doTranslateAudio(progress, assetId, targetLang);
     completedSteps.push("generate");
 
-    // Step 3: Upload confirmation (the upload happens in doTranslateAudio with uploadToMux: true)
     await confirmUpload(progress, result);
     completedSteps.push("upload");
-    streamClosed = true;
 
     return {
       success: true,
@@ -53,14 +50,10 @@ export async function translateAudioWorkflow(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Audio workflow failed";
 
-    // Close the progress stream on error if not already closed
-    if (!streamClosed) {
-      try {
-        const writer = progress.getWriter();
-        await writer.close();
-      } catch {
-        // ignore - stream may be in an invalid state
-      }
+    try {
+      await closeStream(progress);
+    } catch {
+      // ignore - stream may already be closed or in an invalid state
     }
 
     return {
@@ -78,16 +71,12 @@ async function prepareAudio(
   targetLang: string,
 ): Promise<void> {
   "use step";
-  const writer = progress.getWriter();
-  await writer.write({ type: "current", step: "prepare" });
-  // Validation and preparation step
+  await writeToStream(progress, { type: "current", step: "prepare" });
   if (!assetId || !targetLang) {
     throw new Error("Missing required parameters for audio translation");
   }
-  // Small delay to make the step visible in UI
-  await new Promise(resolve => setTimeout(resolve, 500));
-  await writer.write({ type: "completed", step: "prepare" });
-  writer.releaseLock();
+  await sleepMs(500);
+  await writeToStream(progress, { type: "completed", step: "prepare" });
 }
 
 async function doTranslateAudio(
@@ -96,11 +85,7 @@ async function doTranslateAudio(
   targetLang: string,
 ): Promise<TranslateAudioResult> {
   "use step";
-  const writer = progress.getWriter();
-  await writer.write({ type: "current", step: "generate" });
-
-  // The @mux/ai translateAudio is itself a workflow function,
-  // so we must start it using start() from workflow/api
+  await writeToStream(progress, { type: "current", step: "generate" });
   const run = await start(translateAudio, [
     assetId,
     targetLang,
@@ -109,10 +94,8 @@ async function doTranslateAudio(
     },
   ]);
 
-  // Wait for the nested workflow to complete and return its result
   const result = await run.returnValue;
-  await writer.write({ type: "completed", step: "generate" });
-  writer.releaseLock();
+  await writeToStream(progress, { type: "completed", step: "generate" });
   return result;
 }
 
@@ -121,14 +104,11 @@ async function confirmUpload(
   result: TranslateAudioResult,
 ): Promise<void> {
   "use step";
-  const writer = progress.getWriter();
-  await writer.write({ type: "current", step: "upload" });
-  // Verify the result contains expected data
+  await writeToStream(progress, { type: "current", step: "upload" });
   if (!result) {
     throw new Error("Audio dubbing completed but no result returned");
   }
-  // Small delay to make the step visible in UI
-  await new Promise(resolve => setTimeout(resolve, 300));
-  await writer.write({ type: "completed", step: "upload" });
-  await writer.close();
+  await sleepMs(300);
+  await writeToStream(progress, { type: "completed", step: "upload" });
+  await closeStream(progress);
 }

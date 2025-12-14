@@ -31,17 +31,9 @@ interface Layer2LocalizationProps {
   assetId: string;
 }
 
-interface CaptionWorkflowState {
+interface WorkflowState<TStep extends string> {
   status: TranslationStatus;
-  completedSteps: CaptionStepId[];
-  runId?: string;
-  error?: string;
-  isUpdatingPlayer?: boolean;
-}
-
-interface AudioWorkflowState {
-  status: TranslationStatus;
-  completedSteps: AudioStepId[];
+  completedSteps: TStep[];
   runId?: string;
   error?: string;
   isUpdatingPlayer?: boolean;
@@ -238,227 +230,226 @@ function TranslationButton({
 // Polling interval in milliseconds
 const POLL_INTERVAL = 1500;
 
+const CAPTION_TRACK_DELAYS = [500, 750, 1000, 1500, 2000, 3000, 4000, 5000] as const;
+const AUDIO_TRACK_DELAYS = [500, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000, 8000] as const;
+
+async function delay(ms: number) {
+  await new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+async function waitForMuxTrack(
+  checkReady: () => Promise<boolean>,
+  delays: readonly number[],
+) {
+  for (const ms of delays) {
+    if (await checkReady()) {
+      return true;
+    }
+    await delay(ms);
+  }
+  return false;
+}
+
+function mergeSteps<TStep extends string>(prev: TStep[], next: TStep[]) {
+  return next.length ? Array.from(new Set([...prev, ...next])) : prev;
+}
+
+function useTranslationWorkflow<TStep extends string>({
+  assetId,
+  startAction,
+  pollAction,
+  targetLang,
+  onCompleted,
+}: {
+  assetId: string;
+  targetLang: string;
+  startAction: (assetId: string, targetLang: string) => Promise<{ runId: string; status: TranslationStatus; error?: string }>;
+  pollAction: (runId: string, startIndex: number) => Promise<{ status: TranslationStatus; completedSteps: TStep[]; nextIndex: number; error?: string }>;
+  onCompleted?: () => Promise<void>;
+}) {
+  const [state, setState] = useState<WorkflowState<TStep>>({ status: "idle", completedSteps: [] });
+  const [isPending, startTransition] = useTransition();
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamIndexRef = useRef(0);
+  const autoRefreshDoneRef = useRef(false);
+
+  const isRunning = state.status === "running" || state.status === "starting";
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const pollStatus = useCallback(async (runId: string) => {
+    const result = await pollAction(runId, streamIndexRef.current);
+    streamIndexRef.current = result.nextIndex;
+
+    if (result.status === "completed" || result.status === "failed") {
+      stopPolling();
+      setState(prev => ({
+        ...prev,
+        status: result.status,
+        completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
+        runId,
+        error: result.error,
+      }));
+
+      if (result.status === "completed" && onCompleted && !autoRefreshDoneRef.current) {
+        autoRefreshDoneRef.current = true;
+        setState(prev => ({ ...prev, isUpdatingPlayer: true }));
+        await onCompleted();
+        setState(prev => ({ ...prev, isUpdatingPlayer: false }));
+      }
+
+      return;
+    }
+
+    setState(prev => ({
+      ...prev,
+      status: result.status,
+      completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
+    }));
+  }, [onCompleted, pollAction, stopPolling]);
+
+  const startWorkflow = useCallback(() => {
+    stopPolling();
+    streamIndexRef.current = 0;
+    autoRefreshDoneRef.current = false;
+    setState({ status: "starting", completedSteps: [] });
+
+    startTransition(async () => {
+      const result = await startAction(assetId, targetLang);
+
+      if (result.status === "failed" || !result.runId) {
+        setState({ status: "failed", completedSteps: [], error: result.error });
+        return;
+      }
+
+      setState({ status: "running", completedSteps: [], runId: result.runId });
+
+      pollRef.current = setInterval(() => {
+        void pollStatus(result.runId);
+      }, POLL_INTERVAL);
+
+      void pollStatus(result.runId);
+    });
+  }, [assetId, pollStatus, startAction, stopPolling, targetLang]);
+
+  useEffect(() => stopPolling, [stopPolling]);
+
+  return { isPending, isRunning, startWorkflow, state };
+}
+
+function WorkflowSection<TStep extends string>({
+  buttonLabel,
+  completedMessage,
+  disabled,
+  error,
+  isPending,
+  isRunning,
+  status,
+  steps,
+  title,
+  completedSteps,
+  onStart,
+}: {
+  title: string;
+  status: TranslationStatus;
+  isRunning: boolean;
+  isPending: boolean;
+  disabled: boolean;
+  steps: readonly { id: TStep; label: string }[];
+  completedSteps: TStep[];
+  buttonLabel: string;
+  completedMessage: React.ReactNode;
+  error?: string;
+  onStart: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span
+          className="text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
+          style={{ fontFamily: "var(--font-space-mono)" }}
+        >
+          {title}
+        </span>
+        <StatusBadge status={status} />
+      </div>
+
+      <TranslationButton
+        label={buttonLabel}
+        onClick={onStart}
+        disabled={disabled}
+        isPending={isPending}
+        status={status}
+      />
+
+      {(isRunning || completedSteps.length > 0) && (
+        <div className="border-2 border-border bg-surface-elevated p-3">
+          <StepProgress
+            steps={steps}
+            completedSteps={completedSteps}
+            isRunning={isRunning}
+          />
+        </div>
+      )}
+
+      {status === "failed" && error && (
+        <div className="border-2 border-[#dc2626] bg-[#fde8e8] p-2 text-xs text-[#dc2626]">
+          {error}
+        </div>
+      )}
+
+      {status === "completed" && (
+        <div className="border-2 border-[#22903d] bg-[#e9f5ec] p-2 text-xs text-[#22903d]">
+          {completedMessage}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Layer2Localization({ assetId }: Layer2LocalizationProps) {
   const { refreshPlayer } = usePlayer();
   const [selectedLang, setSelectedLang] = useState<TargetLanguage>(TARGET_LANGUAGES[0]);
 
-  // Separate states for captions and audio workflows
-  const [captionState, setCaptionState] = useState<CaptionWorkflowState>({
-    status: "idle",
-    completedSteps: [],
-  });
-  const [audioState, setAudioState] = useState<AudioWorkflowState>({
-    status: "idle",
-    completedSteps: [],
-  });
-
-  const [isCaptionPending, startCaptionTransition] = useTransition();
-  const [isAudioPending, startAudioTransition] = useTransition();
-
-  // Refs to track polling intervals
-  const captionPollRef = useRef<NodeJS.Timeout | null>(null);
-  const audioPollRef = useRef<NodeJS.Timeout | null>(null);
-  const captionStreamIndexRef = useRef(0);
-  const audioStreamIndexRef = useRef(0);
-  const captionAutoRefreshDoneRef = useRef(false);
-  const audioAutoRefreshDoneRef = useRef(false);
-
-  const sleep = useCallback(async (ms: number) => {
-    await new Promise(resolve => setTimeout(resolve, ms));
-  }, []);
-
-  const waitForMuxTrack = useCallback(async (type: "captions" | "audio") => {
-    // Audio tracks take longer to process than text tracks, so use longer delays
-    const delays = type === "audio" ?
-        [500, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000, 8000] :
-        [500, 750, 1000, 1500, 2000, 3000, 4000, 5000];
-
-    for (const delay of delays) {
-      let ready = false;
-      if (type === "captions") {
-        ready = await isCaptionTrackReadyAction(assetId, selectedLang.code);
-      } else {
-        ready = await isAudioTrackReadyAction(assetId, selectedLang.code);
-      }
+  const captions = useTranslationWorkflow<CaptionStepId>({
+    assetId,
+    targetLang: selectedLang.code,
+    startAction: startCaptionTranslationAction,
+    pollAction: pollCaptionTranslationAction,
+    onCompleted: async () => {
+      const ready = await waitForMuxTrack(
+        () => isCaptionTrackReadyAction(assetId, selectedLang.code),
+        CAPTION_TRACK_DELAYS,
+      );
       if (ready) {
-        return true;
-      }
-      await sleep(delay);
-    }
-    return false;
-  }, [assetId, selectedLang.code, sleep]);
-
-  const mergeSteps = useCallback(<T extends string>(prev: T[], next: T[]) => {
-    if (!next.length) {
-      return prev;
-    }
-    return Array.from(new Set([...prev, ...next]));
-  }, []);
-
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (captionPollRef.current) {
-        clearInterval(captionPollRef.current);
-      }
-      if (audioPollRef.current) {
-        clearInterval(audioPollRef.current);
-      }
-    };
-  }, []);
-
-  // Poll for caption workflow status
-  const pollCaptionStatus = useCallback(async (runId: string) => {
-    const result = await pollCaptionTranslationAction(runId, captionStreamIndexRef.current);
-    captionStreamIndexRef.current = result.nextIndex;
-
-    if (result.status === "completed" || result.status === "failed") {
-      // Stop polling when workflow completes
-      if (captionPollRef.current) {
-        clearInterval(captionPollRef.current);
-        captionPollRef.current = null;
-      }
-      setCaptionState({
-        status: result.status,
-        completedSteps: result.completedSteps,
-        runId,
-        error: result.error,
-      });
-      // Auto-refresh the player when captions are successfully translated,
-      // but only after the new track is actually visible on the Mux asset.
-      if (result.status === "completed" && !captionAutoRefreshDoneRef.current) {
-        captionAutoRefreshDoneRef.current = true;
-        setCaptionState(prev => ({ ...prev, isUpdatingPlayer: true }));
-        const trackReady = await waitForMuxTrack("captions");
-        if (trackReady) {
-          refreshPlayer();
-        }
-        setCaptionState(prev => ({ ...prev, isUpdatingPlayer: false }));
-      }
-    } else {
-      // Update state with any progress
-      setCaptionState(prev => ({
-        ...prev,
-        status: result.status,
-        completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
-      }));
-    }
-  }, [mergeSteps, refreshPlayer, waitForMuxTrack]);
-
-  // Poll for audio workflow status
-  const pollAudioStatus = useCallback(async (runId: string) => {
-    const result = await pollAudioTranslationAction(runId, audioStreamIndexRef.current);
-    audioStreamIndexRef.current = result.nextIndex;
-
-    if (result.status === "completed" || result.status === "failed") {
-      // Stop polling when workflow completes
-      if (audioPollRef.current) {
-        clearInterval(audioPollRef.current);
-        audioPollRef.current = null;
-      }
-      setAudioState({
-        status: result.status,
-        completedSteps: result.completedSteps,
-        runId,
-        error: result.error,
-      });
-      // Auto-refresh the player when audio is successfully dubbed,
-      // but only after the new track is actually visible on the Mux asset.
-      if (result.status === "completed" && !audioAutoRefreshDoneRef.current) {
-        audioAutoRefreshDoneRef.current = true;
-        setAudioState(prev => ({ ...prev, isUpdatingPlayer: true }));
-        // Wait for track to be ready, but refresh player regardless
-        // since the track will eventually be available
-        await waitForMuxTrack("audio");
         refreshPlayer();
-        setAudioState(prev => ({ ...prev, isUpdatingPlayer: false }));
       }
-    } else {
-      // Update state with any progress
-      setAudioState(prev => ({
-        ...prev,
-        status: result.status,
-        completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
-      }));
-    }
-  }, [mergeSteps, refreshPlayer, waitForMuxTrack]);
+    },
+  });
 
-  const handleTranslateCaptions = useCallback(() => {
-    setCaptionState({ status: "starting", completedSteps: [] });
-    captionStreamIndexRef.current = 0;
-    captionAutoRefreshDoneRef.current = false;
+  const audio = useTranslationWorkflow<AudioStepId>({
+    assetId,
+    targetLang: selectedLang.code,
+    startAction: startAudioTranslationAction,
+    pollAction: pollAudioTranslationAction,
+    onCompleted: async () => {
+      await waitForMuxTrack(
+        () => isAudioTrackReadyAction(assetId, selectedLang.code),
+        AUDIO_TRACK_DELAYS,
+      );
+      refreshPlayer();
+    },
+  });
 
-    startCaptionTransition(async () => {
-      const result = await startCaptionTranslationAction(assetId, selectedLang.code);
-
-      if (result.status === "failed" || !result.runId) {
-        setCaptionState({
-          status: "failed",
-          completedSteps: [],
-          error: result.error,
-        });
-        return;
-      }
-
-      // Workflow started successfully - begin polling
-      setCaptionState({
-        status: "running",
-        completedSteps: [],
-        runId: result.runId,
-      });
-
-      // Start polling for status
-      captionPollRef.current = setInterval(() => {
-        pollCaptionStatus(result.runId);
-      }, POLL_INTERVAL);
-
-      // Also poll immediately
-      pollCaptionStatus(result.runId);
-    });
-  }, [assetId, selectedLang.code, pollCaptionStatus]);
-
-  const handleTranslateAudio = useCallback(() => {
-    setAudioState({ status: "starting", completedSteps: [] });
-    audioStreamIndexRef.current = 0;
-    audioAutoRefreshDoneRef.current = false;
-
-    startAudioTransition(async () => {
-      const result = await startAudioTranslationAction(assetId, selectedLang.code);
-
-      if (result.status === "failed" || !result.runId) {
-        setAudioState({
-          status: "failed",
-          completedSteps: [],
-          error: result.error,
-        });
-        return;
-      }
-
-      // Workflow started successfully - begin polling
-      setAudioState({
-        status: "running",
-        completedSteps: [],
-        runId: result.runId,
-      });
-
-      // Start polling for status
-      audioPollRef.current = setInterval(() => {
-        pollAudioStatus(result.runId);
-      }, POLL_INTERVAL);
-
-      // Also poll immediately
-      pollAudioStatus(result.runId);
-    });
-  }, [assetId, selectedLang.code, pollAudioStatus]);
-
-  const isAnyWorkflowRunning =
-    captionState.status === "running" ||
-    captionState.status === "starting" ||
-    audioState.status === "running" ||
-    audioState.status === "starting";
-
-  const isCaptionRunning = captionState.status === "running" || captionState.status === "starting";
-  const isAudioRunning = audioState.status === "running" || audioState.status === "starting";
+  const isAnyWorkflowRunning = captions.isRunning || audio.isRunning;
+  const captionCompletedMessage = `✓ Captions translated to ${selectedLang.name}. ${captions.state.isUpdatingPlayer ? "Updating player…" : "Ready in player."}`;
+  const audioCompletedMessage = `✓ Audio dubbed to ${selectedLang.name}. ${audio.state.isUpdatingPlayer ? "Updating player…" : "Ready in player."}`;
 
   return (
     <div className="space-y-4">
@@ -477,101 +468,33 @@ export function Layer2Localization({ assetId }: Layer2LocalizationProps) {
         />
       </div>
 
-      {/* Caption Translation */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span
-            className="text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-            style={{ fontFamily: "var(--font-space-mono)" }}
-          >
-            Captions
-          </span>
-          <StatusBadge status={captionState.status} />
-        </div>
+      <WorkflowSection
+        title="Captions"
+        status={captions.state.status}
+        isRunning={captions.isRunning}
+        isPending={captions.isPending}
+        disabled={isAnyWorkflowRunning}
+        steps={CAPTION_STEPS}
+        completedSteps={captions.state.completedSteps}
+        buttonLabel={`TRANSLATE CAPTIONS → ${selectedLang.name.toUpperCase()}`}
+        error={captions.state.error}
+        onStart={captions.startWorkflow}
+        completedMessage={captionCompletedMessage}
+      />
 
-        <TranslationButton
-          label={`TRANSLATE CAPTIONS → ${selectedLang.name.toUpperCase()}`}
-          onClick={handleTranslateCaptions}
-          disabled={isAnyWorkflowRunning}
-          isPending={isCaptionPending}
-          status={captionState.status}
-        />
-
-        {/* Step progress for captions */}
-        {(isCaptionRunning || captionState.completedSteps.length > 0) && (
-          <div className="border-2 border-border bg-surface-elevated p-3">
-            <StepProgress
-              steps={CAPTION_STEPS}
-              completedSteps={captionState.completedSteps}
-              isRunning={isCaptionRunning}
-            />
-          </div>
-        )}
-
-        {captionState.status === "failed" && captionState.error && (
-          <div className="border-2 border-[#dc2626] bg-[#fde8e8] p-2 text-xs text-[#dc2626]">
-            {captionState.error}
-          </div>
-        )}
-        {captionState.status === "completed" && (
-          <div className="border-2 border-[#22903d] bg-[#e9f5ec] p-2 text-xs text-[#22903d]">
-            ✓ Captions translated to
-            {" "}
-            {selectedLang.name}
-            .
-            {" "}
-            {captionState.isUpdatingPlayer ? "Updating player…" : "Ready in player."}
-          </div>
-        )}
-      </div>
-
-      {/* Audio Dubbing */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span
-            className="text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-            style={{ fontFamily: "var(--font-space-mono)" }}
-          >
-            Audio
-          </span>
-          <StatusBadge status={audioState.status} />
-        </div>
-
-        <TranslationButton
-          label={`TRANSLATE AUDIO → ${selectedLang.name.toUpperCase()}`}
-          onClick={handleTranslateAudio}
-          disabled={isAnyWorkflowRunning}
-          isPending={isAudioPending}
-          status={audioState.status}
-        />
-
-        {/* Step progress for audio */}
-        {(isAudioRunning || audioState.completedSteps.length > 0) && (
-          <div className="border-2 border-border bg-surface-elevated p-3">
-            <StepProgress
-              steps={AUDIO_STEPS}
-              completedSteps={audioState.completedSteps}
-              isRunning={isAudioRunning}
-            />
-          </div>
-        )}
-
-        {audioState.status === "failed" && audioState.error && (
-          <div className="border-2 border-[#dc2626] bg-[#fde8e8] p-2 text-xs text-[#dc2626]">
-            {audioState.error}
-          </div>
-        )}
-        {audioState.status === "completed" && (
-          <div className="border-2 border-[#22903d] bg-[#e9f5ec] p-2 text-xs text-[#22903d]">
-            ✓ Audio dubbed to
-            {" "}
-            {selectedLang.name}
-            .
-            {" "}
-            {audioState.isUpdatingPlayer ? "Updating player…" : "Ready in player."}
-          </div>
-        )}
-      </div>
+      <WorkflowSection
+        title="Audio"
+        status={audio.state.status}
+        isRunning={audio.isRunning}
+        isPending={audio.isPending}
+        disabled={isAnyWorkflowRunning}
+        steps={AUDIO_STEPS}
+        completedSteps={audio.state.completedSteps}
+        buttonLabel={`TRANSLATE AUDIO → ${selectedLang.name.toUpperCase()}`}
+        error={audio.state.error}
+        onStart={audio.startWorkflow}
+        completedMessage={audioCompletedMessage}
+      />
 
       {/* Info text */}
       <p className="text-[10px] text-foreground-muted" style={{ fontFamily: "var(--font-space-mono)" }}>

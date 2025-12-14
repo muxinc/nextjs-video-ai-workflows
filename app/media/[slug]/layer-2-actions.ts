@@ -12,39 +12,35 @@ import type { AudioStepId, CaptionStepId, TranslationStatus } from "./layer-2-co
 // Types (interfaces can be exported from server action files)
 // ─────────────────────────────────────────────────────────────────────────────
 
+interface WorkflowReturnValue<TStep extends string> {
+  success: boolean;
+  currentStep: TStep;
+  completedSteps: TStep[];
+  error?: string;
+}
+
+interface ProgressEvent<TStep extends string> {
+  type: "current" | "completed";
+  step: TStep;
+}
+
 export interface WorkflowStartResult {
   runId: string;
   status: TranslationStatus;
   error?: string;
 }
 
-export interface CaptionTranslationResult {
+export interface TranslationResult<TStep extends string> {
   status: TranslationStatus;
-  completedSteps: CaptionStepId[];
-  currentStep?: CaptionStepId;
-  events: CaptionProgressEvent[];
+  completedSteps: TStep[];
+  currentStep?: TStep;
+  events: ProgressEvent<TStep>[];
   nextIndex: number;
   error?: string;
 }
 
-export interface AudioTranslationResult {
-  status: TranslationStatus;
-  completedSteps: AudioStepId[];
-  currentStep?: AudioStepId;
-  events: AudioProgressEvent[];
-  nextIndex: number;
-  error?: string;
-}
-
-interface CaptionProgressEvent {
-  type: "current" | "completed";
-  step: CaptionStepId;
-}
-
-interface AudioProgressEvent {
-  type: "current" | "completed";
-  step: AudioStepId;
-}
+export type CaptionTranslationResult = TranslationResult<CaptionStepId>;
+export type AudioTranslationResult = TranslationResult<AudioStepId>;
 
 function mapWorkflowStatus(status: string): TranslationStatus {
   if (status === "pending") {
@@ -106,6 +102,58 @@ async function readProgressEvents<TEvent extends { type: string }>(
   return events;
 }
 
+async function startWorkflowAction<TArgs extends unknown[]>(
+  workflow: (...args: TArgs) => Promise<unknown>,
+  args: TArgs,
+): Promise<WorkflowStartResult> {
+  try {
+    const run = await start(workflow, args);
+    return { runId: run.runId, status: "running" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to start workflow";
+    return { runId: "", status: "failed", error: message };
+  }
+}
+
+async function pollTranslationAction<TStep extends string>(
+  runId: string,
+  startIndex: number,
+): Promise<TranslationResult<TStep>> {
+  const run = getRun<WorkflowReturnValue<TStep>>(runId);
+
+  const workflowStatus = await run.status;
+  const status = mapWorkflowStatus(workflowStatus);
+
+  const events = await readProgressEvents(
+    run.getReadable<ProgressEvent<TStep>>({ namespace: "progress", startIndex }),
+  );
+
+  const lastCurrent = [...events].reverse().find(e => e.type === "current");
+  const completedFromEvents = events
+    .filter(e => e.type === "completed")
+    .map(e => e.step);
+
+  if (status === "completed" || status === "failed") {
+    const result = await run.returnValue;
+    return {
+      status: result.success ? "completed" : "failed",
+      completedSteps: result.completedSteps,
+      currentStep: result.currentStep,
+      events,
+      nextIndex: startIndex + events.length,
+      error: result.error,
+    };
+  }
+
+  return {
+    status,
+    completedSteps: completedFromEvents,
+    currentStep: lastCurrent?.step,
+    events,
+    nextIndex: startIndex + events.length,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Server Actions: Start Workflows (Non-blocking)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,25 +166,11 @@ export async function startCaptionTranslationAction(
   assetId: string,
   targetLang: string,
 ): Promise<WorkflowStartResult> {
-  try {
-    const run = await start(translateCaptionsWorkflow, [
-      assetId,
-      "en", // source language is always English for now
-      targetLang,
-    ]);
-
-    return {
-      runId: run.runId,
-      status: "running",
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to start caption translation";
-    return {
-      runId: "",
-      status: "failed",
-      error: message,
-    };
-  }
+  return await startWorkflowAction(translateCaptionsWorkflow, [
+    assetId,
+    "en", // source language is always English for now
+    targetLang,
+  ]);
 }
 
 /**
@@ -147,24 +181,7 @@ export async function startAudioTranslationAction(
   assetId: string,
   targetLang: string,
 ): Promise<WorkflowStartResult> {
-  try {
-    const run = await start(translateAudioWorkflow, [
-      assetId,
-      targetLang,
-    ]);
-
-    return {
-      runId: run.runId,
-      status: "running",
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to start audio translation";
-    return {
-      runId: "",
-      status: "failed",
-      error: message,
-    };
-  }
+  return await startWorkflowAction(translateAudioWorkflow, [assetId, targetLang]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -179,45 +196,7 @@ export async function pollCaptionTranslationAction(
   startIndex = 0,
 ): Promise<CaptionTranslationResult> {
   try {
-    const run = getRun<{
-      success: boolean;
-      currentStep: CaptionStepId;
-      completedSteps: CaptionStepId[];
-      error?: string;
-    }>(runId);
-
-    const workflowStatus = await run.status;
-    const status = mapWorkflowStatus(workflowStatus);
-
-    const events = await readProgressEvents(
-      run.getReadable<CaptionProgressEvent>({ namespace: "progress", startIndex }),
-    );
-
-    const lastCurrent = [...events].reverse().find(e => e.type === "current");
-    const completedFromEvents = events
-      .filter(e => e.type === "completed")
-      .map(e => e.step);
-
-    if (status === "completed" || status === "failed") {
-      // Workflow finished - return the final structured result (and any events)
-      const result = await run.returnValue;
-      return {
-        status: result.success ? "completed" : "failed",
-        completedSteps: result.completedSteps,
-        currentStep: result.currentStep,
-        events,
-        nextIndex: startIndex + events.length,
-        error: result.error,
-      };
-    }
-
-    return {
-      status,
-      completedSteps: completedFromEvents,
-      currentStep: lastCurrent?.step,
-      events,
-      nextIndex: startIndex + events.length,
-    };
+    return await pollTranslationAction<CaptionStepId>(runId, startIndex);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to poll workflow status";
     return {
@@ -238,44 +217,7 @@ export async function pollAudioTranslationAction(
   startIndex = 0,
 ): Promise<AudioTranslationResult> {
   try {
-    const run = getRun<{
-      success: boolean;
-      currentStep: AudioStepId;
-      completedSteps: AudioStepId[];
-      error?: string;
-    }>(runId);
-
-    const workflowStatus = await run.status;
-    const status = mapWorkflowStatus(workflowStatus);
-
-    const events = await readProgressEvents(
-      run.getReadable<AudioProgressEvent>({ namespace: "progress", startIndex }),
-    );
-
-    const lastCurrent = [...events].reverse().find(e => e.type === "current");
-    const completedFromEvents = events
-      .filter(e => e.type === "completed")
-      .map(e => e.step);
-
-    if (status === "completed" || status === "failed") {
-      const result = await run.returnValue;
-      return {
-        status: result.success ? "completed" : "failed",
-        completedSteps: result.completedSteps,
-        currentStep: result.currentStep,
-        events,
-        nextIndex: startIndex + events.length,
-        error: result.error,
-      };
-    }
-
-    return {
-      status,
-      completedSteps: completedFromEvents,
-      currentStep: lastCurrent?.step,
-      events,
-      nextIndex: startIndex + events.length,
-    };
+    return await pollTranslationAction<AudioStepId>(runId, startIndex);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to poll workflow status";
     return {

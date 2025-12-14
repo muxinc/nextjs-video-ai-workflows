@@ -4,6 +4,8 @@ import { start } from "workflow/api";
 import type { CaptionStepId } from "@/app/media/[slug]/layer-2-constants";
 import { translateCaptions } from "@mux/ai/workflows";
 
+import { closeStream, sleepMs, writeToStream } from "./workflow-progress";
+
 export type TranslateCaptionsResult = Awaited<ReturnType<typeof translateCaptions>>;
 export type { CaptionStepId };
 
@@ -29,21 +31,16 @@ export async function translateCaptionsWorkflow(
 
   const completedSteps: CaptionStepId[] = [];
   const progress = getWritable<CaptionProgressEvent>({ namespace: "progress" });
-  let streamClosed = false;
 
   try {
-    // Step 1: Prepare
     await prepareTranslation(progress, assetId, sourceLang, targetLang);
     completedSteps.push("prepare");
 
-    // Step 2: Translate (start the @mux/ai workflow using start() and await result)
     const result = await doTranslateCaptions(progress, assetId, sourceLang, targetLang);
     completedSteps.push("translate");
 
-    // Step 3: Upload confirmation (the upload happens in doTranslateCaptions with uploadToMux: true)
     await confirmUpload(progress, result);
     completedSteps.push("upload");
-    streamClosed = true;
 
     return {
       success: true,
@@ -54,14 +51,10 @@ export async function translateCaptionsWorkflow(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Caption workflow failed";
 
-    // Close the progress stream on error if not already closed
-    if (!streamClosed) {
-      try {
-        const writer = progress.getWriter();
-        await writer.close();
-      } catch {
-        // ignore - stream may be in an invalid state
-      }
+    try {
+      await closeStream(progress);
+    } catch {
+      // ignore - stream may already be closed or in an invalid state
     }
 
     return {
@@ -80,16 +73,12 @@ async function prepareTranslation(
   targetLang: string,
 ): Promise<void> {
   "use step";
-  const writer = progress.getWriter();
-  await writer.write({ type: "current", step: "prepare" });
-  // Validation and preparation step
+  await writeToStream(progress, { type: "current", step: "prepare" });
   if (!assetId || !sourceLang || !targetLang) {
     throw new Error("Missing required parameters for caption translation");
   }
-  // Small delay to make the step visible in UI
-  await new Promise(resolve => setTimeout(resolve, 500));
-  await writer.write({ type: "completed", step: "prepare" });
-  writer.releaseLock();
+  await sleepMs(500);
+  await writeToStream(progress, { type: "completed", step: "prepare" });
 }
 
 async function doTranslateCaptions(
@@ -99,11 +88,7 @@ async function doTranslateCaptions(
   targetLang: string,
 ): Promise<TranslateCaptionsResult> {
   "use step";
-  const writer = progress.getWriter();
-  await writer.write({ type: "current", step: "translate" });
-
-  // The @mux/ai translateCaptions is itself a workflow function,
-  // so we must start it using start() from workflow/api
+  await writeToStream(progress, { type: "current", step: "translate" });
   const run = await start(translateCaptions, [
     assetId,
     sourceLang,
@@ -114,10 +99,8 @@ async function doTranslateCaptions(
     },
   ]);
 
-  // Wait for the nested workflow to complete and return its result
   const result = await run.returnValue;
-  await writer.write({ type: "completed", step: "translate" });
-  writer.releaseLock();
+  await writeToStream(progress, { type: "completed", step: "translate" });
   return result;
 }
 
@@ -126,14 +109,11 @@ async function confirmUpload(
   result: TranslateCaptionsResult,
 ): Promise<void> {
   "use step";
-  const writer = progress.getWriter();
-  await writer.write({ type: "current", step: "upload" });
-  // Verify the result contains expected data
+  await writeToStream(progress, { type: "current", step: "upload" });
   if (!result) {
     throw new Error("Translation completed but no result returned");
   }
-  // Small delay to make the step visible in UI
-  await new Promise(resolve => setTimeout(resolve, 300));
-  await writer.write({ type: "completed", step: "upload" });
-  await writer.close();
+  await sleepMs(300);
+  await writeToStream(progress, { type: "completed", step: "upload" });
+  await closeStream(progress);
 }
