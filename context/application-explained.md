@@ -56,10 +56,12 @@ This is the "hello world" of `@mux/ai`—no workflow infrastructure needed, just
 When operations take longer or need retry/resume semantics, run `@mux/ai` workflows durably via Vercel Workflows.
 
 - **What it does**: Translates captions or dubs audio into a target language
-- **When it runs**: Triggered by user action, executes in background, UI polls for status
+- **When it runs**: Triggered by user action, executes in background, UI polls for status (and can be refreshed/reloaded)
 - **UI surface**: "Add Spanish captions" / "Dub to French" buttons with inline status callouts
 
 This teaches the pattern: **one workflow → durable execution → status UI**.
+
+**Resumable UX:** start a workflow, then refresh the page (or navigate away and back) and you should still see it running asynchronously. In-flight status is rehydrated from browser `localStorage`.
 
 ### Layer 3: Connectors (Accessible social clips)
 

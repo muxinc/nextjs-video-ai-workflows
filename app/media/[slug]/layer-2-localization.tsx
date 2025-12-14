@@ -4,6 +4,16 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import {
+  clearWorkflowProgress,
+  getAllInFlightWorkflows,
+  getWorkflowProgress,
+  markWorkflowCompleted,
+  markWorkflowFailed,
+  markWorkflowRunning,
+  startWorkflow as persistWorkflowStart,
+} from "@/app/lib/workflow-state";
+
+import {
   isAudioTrackReadyAction,
   isCaptionTrackReadyAction,
   pollAudioTranslationAction,
@@ -331,8 +341,34 @@ function mergeSteps<TStep extends string>(prev: TStep[], next: TStep[]) {
   return next.length ? Array.from(new Set([...prev, ...next])) : prev;
 }
 
+/**
+ * Computes the initial language selection based on in-flight workflows.
+ * This runs synchronously during initial render to ensure workflow hooks
+ * get the correct targetLang from the start (resumability).
+ */
+function getInitialLanguageFromWorkflows(assetId: string): TargetLanguage {
+  if (typeof window === "undefined") {
+    return TARGET_LANGUAGES[0];
+  }
+
+  const workflows = getAllInFlightWorkflows(assetId)
+    .filter(w => w.workflowType === "translateCaptions" || w.workflowType === "translateAudio")
+    .sort((a, b) => b.progress.startedAt.localeCompare(a.progress.startedAt));
+
+  const withLang = workflows.find(w => w.targetLang);
+  if (withLang?.targetLang) {
+    const match = TARGET_LANGUAGES.find(l => l.code === withLang.targetLang);
+    if (match) {
+      return match;
+    }
+  }
+
+  return TARGET_LANGUAGES[0];
+}
+
 function useTranslationWorkflow<TStep extends string>({
   assetId,
+  workflowType,
   startAction,
   pollAction,
   targetLang,
@@ -340,16 +376,39 @@ function useTranslationWorkflow<TStep extends string>({
 }: {
   assetId: string;
   targetLang: string;
+  workflowType: "translateCaptions" | "translateAudio";
   startAction: (assetId: string, targetLang: string) => Promise<{ runId: string; status: TranslationStatus; error?: string }>;
   pollAction: (runId: string, startIndex: number) => Promise<{ status: TranslationStatus; completedSteps: TStep[]; nextIndex: number; error?: string }>;
   onCompleted?: () => Promise<void>;
 }) {
-  const [state, setState] = useState<WorkflowState<TStep>>({ status: "idle", completedSteps: [] });
+  // Initialize state from localStorage (like layer-1-summary.tsx).
+  // Reads once on mount; polling updates state directly thereafter.
+  const [state, setState] = useState<WorkflowState<TStep>>(() => {
+    const stored = getWorkflowProgress(assetId, workflowType, targetLang);
+    if (stored && (stored.status === "queued" || stored.status === "running")) {
+      // Check for stale localStorage entries (> 30 min old)
+      const startedAtMs = Date.parse(stored.startedAt);
+      const ageMs = Number.isFinite(startedAtMs) ? Date.now() - startedAtMs : Number.POSITIVE_INFINITY;
+      const staleAfterMs = 30 * 60 * 1000;
+      if (ageMs > staleAfterMs) {
+        // Don't rehydrate stale entries; they'll be cleared in useEffect
+        return { status: "idle", completedSteps: [] };
+      }
+      return { status: "starting", completedSteps: [], runId: stored.workflowRunId };
+    }
+    return { status: "idle", completedSteps: [] };
+  });
+
   const [isPending, startTransition] = useTransition();
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamIndexRef = useRef(0);
   const autoRefreshDoneRef = useRef(false);
+  const onCompletedRef = useRef(onCompleted);
+
+  useEffect(() => {
+    onCompletedRef.current = onCompleted;
+  }, [onCompleted]);
 
   const isRunning = state.status === "running" || state.status === "starting";
 
@@ -366,6 +425,12 @@ function useTranslationWorkflow<TStep extends string>({
 
     if (result.status === "completed" || result.status === "failed") {
       stopPolling();
+      if (result.status === "completed") {
+        markWorkflowCompleted(assetId, workflowType, targetLang);
+      } else {
+        markWorkflowFailed(assetId, workflowType, targetLang, result.error || "Workflow failed.");
+        clearWorkflowProgress(assetId, workflowType, targetLang);
+      }
       setState(prev => ({
         ...prev,
         status: result.status,
@@ -374,22 +439,25 @@ function useTranslationWorkflow<TStep extends string>({
         error: result.error,
       }));
 
-      if (result.status === "completed" && onCompleted && !autoRefreshDoneRef.current) {
+      const onCompletedFn = onCompletedRef.current;
+      if (result.status === "completed" && onCompletedFn && !autoRefreshDoneRef.current) {
         autoRefreshDoneRef.current = true;
         setState(prev => ({ ...prev, isUpdatingPlayer: true }));
-        await onCompleted();
+        await onCompletedFn();
         setState(prev => ({ ...prev, isUpdatingPlayer: false }));
       }
-
       return;
     }
 
+    if (result.status === "running") {
+      markWorkflowRunning(assetId, workflowType, targetLang);
+    }
     setState(prev => ({
       ...prev,
       status: result.status,
       completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
     }));
-  }, [onCompleted, pollAction, stopPolling]);
+  }, [assetId, pollAction, stopPolling, targetLang, workflowType]);
 
   const startWorkflow = useCallback(() => {
     stopPolling();
@@ -405,7 +473,8 @@ function useTranslationWorkflow<TStep extends string>({
         return;
       }
 
-      setState({ status: "running", completedSteps: [], runId: result.runId });
+      persistWorkflowStart(assetId, workflowType, targetLang, result.runId);
+      setState({ status: "starting", completedSteps: [], runId: result.runId });
 
       pollRef.current = setInterval(() => {
         void pollStatus(result.runId);
@@ -413,9 +482,35 @@ function useTranslationWorkflow<TStep extends string>({
 
       void pollStatus(result.runId);
     });
-  }, [assetId, pollStatus, startAction, stopPolling, targetLang]);
+  }, [assetId, pollStatus, startAction, stopPolling, targetLang, workflowType]);
 
+  // Cleanup polling on unmount
   useEffect(() => stopPolling, [stopPolling]);
+
+  // Resume polling if we rehydrated an in-flight workflow from localStorage
+  useEffect(() => {
+    if (!state.runId) {
+      return;
+    }
+
+    // Already polling
+    if (pollRef.current) {
+      return;
+    }
+
+    if (state.status === "starting" || state.status === "running") {
+      pollRef.current = setInterval(() => {
+        void pollStatus(state.runId!);
+      }, POLL_INTERVAL);
+      void pollStatus(state.runId);
+      return () => {
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      };
+    }
+  }, [pollStatus, state.runId, state.status]);
 
   return { isPending, isRunning, startWorkflow, state };
 }
@@ -506,11 +601,16 @@ function WorkflowSection<TStep extends string>({
 
 export function Layer2Localization({ assetId }: Layer2LocalizationProps) {
   const { refreshPlayer } = usePlayer();
-  const [selectedLang, setSelectedLang] = useState<TargetLanguage>(TARGET_LANGUAGES[0]);
+  // Use lazy initializer to compute initial language synchronously during first render.
+  // This ensures workflow hooks get the correct targetLang for resumability.
+  const [selectedLang, setSelectedLang] = useState<TargetLanguage>(
+    () => getInitialLanguageFromWorkflows(assetId),
+  );
   const shouldReduceMotion = useReducedMotion();
 
   const captions = useTranslationWorkflow<CaptionStepId>({
     assetId,
+    workflowType: "translateCaptions",
     targetLang: selectedLang.code,
     startAction: startCaptionTranslationAction,
     pollAction: pollCaptionTranslationAction,
@@ -527,6 +627,7 @@ export function Layer2Localization({ assetId }: Layer2LocalizationProps) {
 
   const audio = useTranslationWorkflow<AudioStepId>({
     assetId,
+    workflowType: "translateAudio",
     targetLang: selectedLang.code,
     startAction: startAudioTranslationAction,
     pollAction: pollAudioTranslationAction,

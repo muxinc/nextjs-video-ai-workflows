@@ -93,10 +93,11 @@ async function persistTrackId(assetId: string, targetLang: string, trackId: stri
 Per the [Vercel Workflow docs](https://useworkflow.dev/docs/getting-started/next#create-your-route-handler), workflows are triggered via `start()` from `workflow/api` in a route handler:
 
 ```typescript
-// app/api/workflows/translate-captions/route.ts
-import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 import { NextResponse } from "next/server";
 import { start } from "workflow/api";
+
+// app/api/workflows/translate-captions/route.ts
+import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 
 export async function POST(request: Request) {
   const { assetId, targetLang } = await request.json();
@@ -564,6 +565,8 @@ This ordering builds the app layer-by-layer so the teaching progression is alway
 - [x] **Define status types consistently**
   - [x] `WorkflowStatus`: `"queued" | "running" | "completed" | "failed"`
 
+**Resumable UX goal:** when a workflow is started, the client persists the run ID + status in `localStorage`, and relevant UI surfaces rehydrate/poll on load. This lets users refresh or navigate away and back and still see an in-flight workflow continue asynchronously.
+
 ### 2) Read-only app surfaces (browse + detail)
 
 - [x] **UI: `/media` index**
@@ -587,28 +590,28 @@ This ordering builds the app layer-by-layer so the teaching progression is alway
 
 ### 4) Layer 2: Workflows (Vercel Workflow infra)
 
-- [ ] **Wire Vercel Workflow in Next.js**
-  - [ ] Ensure workflow entrypoints exist under `workflows/*` using `"use workflow"`
-  - [ ] Ensure side-effect steps live in `"use step"` functions
-- [ ] **`POST /api/workflows/translate-captions`** and **`POST /api/workflows/translate-audio`**
-  - [ ] Starts a workflow run (returns workflow run ID)
-  - [ ] Client stores run ID + status in localStorage
-- [ ] **UI status callouts**
-  - [ ] For each action button: show `Queued / Running / Ready / Failed` inline
-  - [ ] Poll workflow status and update localStorage
-  - [ ] Clear "Layer 2: Workflows" label in UI
+- [x] **Wire Vercel Workflow in Next.js**
+  - [x] Ensure workflow entrypoints exist under `workflows/*` using `"use workflow"`
+  - [x] Ensure side-effect steps live in `"use step"` functions
+- [x] **`POST /api/workflows/translate-captions`** and **`POST /api/workflows/translate-audio`**
+  - [x] Starts a workflow run (returns workflow run ID)
+  - [x] Client stores run ID + status in localStorage
+- [x] **UI status callouts**
+  - [x] For each action button: show `Queued / Running / Ready / Failed` inline
+  - [x] Poll workflow status and update localStorage
+  - [x] Clear "Layer 2: Workflows" label in UI
 
 ### 5) Layer 2: Caption translation + audio dubbing
 
-- [ ] **Caption translation flow**
-  - [ ] Identify the canonical source text track for an asset (the "ready" English captions)
-  - [ ] `translateCaptionsWorkflow` runs `translateCaptions` durably via Vercel Workflow
-  - [ ] Workflow attaches translated track directly to the Mux asset (`uploadToMux: true`)
-  - [ ] Refresh asset data to see new track in player selector
-- [ ] **Audio dubbing flow**
-  - [ ] `translateAudioWorkflow` runs `translateAudio` durably via Vercel Workflow
-  - [ ] Workflow attaches dubbed audio track directly to the Mux asset
-  - [ ] Refresh asset data to see new track in player selector
+- [x] **Caption translation flow**
+  - [x] Identify the canonical source text track for an asset (the "ready" English captions)
+  - [x] `translateCaptionsWorkflow` runs `translateCaptions` durably via Vercel Workflow
+  - [x] Workflow attaches translated track directly to the Mux asset (`uploadToMux: true`)
+  - [x] Refresh asset data to see new track in player selector
+- [x] **Audio dubbing flow**
+  - [x] `translateAudioWorkflow` runs `translateAudio` durably via Vercel Workflow
+  - [x] Workflow attaches dubbed audio track directly to the Mux asset
+  - [x] Refresh asset data to see new track in player selector
 
 ### 6) Layer 3: Clip creation UI (Remotion preview — "free" iteration)
 

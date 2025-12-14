@@ -178,10 +178,11 @@ async function myStep(data: Data) {
 Per [Vercel Workflow docs](https://useworkflow.dev/docs/getting-started/next#create-your-route-handler), workflows are triggered via `start()` from `workflow/api` in a route handler:
 
 ```typescript
-// app/api/workflows/translate-captions/route.ts
-import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 import { NextResponse } from "next/server";
 import { start } from "workflow/api";
+
+// app/api/workflows/translate-captions/route.ts
+import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 
 export async function POST(request: Request) {
   const { assetId, targetLang } = await request.json();
@@ -216,6 +217,13 @@ async function doTranslation(assetId: string, targetLang: string) {
   return await translateCaptions(assetId, "en", targetLang, { uploadToMux: true });
 }
 ```
+
+### Resumability: what users should experience
+
+This demo intentionally showcases **durable workflows + resumable UI**:
+
+- Workflows run asynchronously via `start()` and continue even if the user refreshes or navigates away.
+- The UI persists in-flight runs in browser `localStorage` (see `app/lib/workflow-state.ts`) and rehydrates/polls on page load so users can leave and come back and still see progress.
 
 ### Layer 3: Composing with connectors
 
