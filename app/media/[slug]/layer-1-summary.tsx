@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
-import type { Layer1SummaryState, SummaryTone } from "./layer-1-actions";
-import { generateSummaryAndTagsAction } from "./layer-1-actions";
+import type { SummaryStepId } from "@/workflows/get-summary-and-tags";
+
+import type { SummaryStatus, SummaryTone } from "./layer-1-actions";
+import { pollSummaryWorkflowAction, startSummaryWorkflowAction } from "./layer-1-actions";
 
 const TONE_OPTIONS: { value: SummaryTone; label: string }[] = [
   { value: "normal", label: "NORMAL" },
@@ -12,20 +13,89 @@ const TONE_OPTIONS: { value: SummaryTone; label: string }[] = [
   { value: "sassy", label: "PLAYFUL" },
 ];
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
+const POLL_INTERVAL = 1500;
+
+const SUMMARY_STEPS: readonly { id: SummaryStepId; label: string }[] = [
+  { id: "prepare", label: "Preparing inputs" },
+  { id: "generate", label: "Generating summary + tags" },
+  { id: "finalize", label: "Finalizing output" },
+] as const;
+
+function StatusBadge({ status }: { status: SummaryStatus }) {
+  const config: Record<SummaryStatus, { label: string; className: string }> = {
+    idle: { label: "READY", className: "bg-surface-elevated text-foreground-muted" },
+    starting: { label: "QUEUED", className: "bg-[#fff8e6] text-[#b8860b]" },
+    running: { label: "RUNNING", className: "bg-[#e8f0fa] text-[#1c65be]" },
+    completed: { label: "DONE", className: "bg-[#e9f5ec] text-[#22903d]" },
+    failed: { label: "FAILED", className: "bg-[#fde8e8] text-[#dc2626]" },
+  };
+
+  const { label, className } = config[status];
 
   return (
-    <button
-      type="submit"
-      className="btn-action w-full"
-      disabled={pending}
+    <span
+      className={`inline-flex items-center border-2 border-border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${className}`}
+      style={{ fontFamily: "var(--font-space-mono)" }}
     >
-      {pending ? "GENERATING..." : "SUMMARIZE & TAG"}
-      {!pending && (
-        <span className="arrow-icon ml-2">↗</span>
+      {status === "running" && (
+        <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
       )}
-    </button>
+      {label}
+    </span>
+  );
+}
+
+function StepProgress<T extends string>({
+  steps,
+  completedSteps,
+  isRunning,
+}: {
+  steps: readonly { id: T; label: string }[];
+  completedSteps: T[];
+  isRunning: boolean;
+}) {
+  const currentStepIndex = completedSteps.length;
+
+  return (
+    <div className="space-y-1.5">
+      {steps.map((step, index) => {
+        const isCompleted = completedSteps.includes(step.id);
+        const isCurrent = isRunning && index === currentStepIndex;
+
+        let indicatorContent: React.ReactNode;
+        if (isCompleted) {
+          indicatorContent = <span className="text-[#22903d]">✓</span>;
+        } else if (isCurrent) {
+          indicatorContent = <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#1c65be]" />;
+        } else {
+          indicatorContent = <span className="inline-block h-2 w-2 rounded-full border border-foreground-muted" />;
+        }
+
+        let labelClassName: string;
+        if (isCompleted) {
+          labelClassName = "text-[#22903d]";
+        } else if (isCurrent) {
+          labelClassName = "font-bold text-[#1c65be]";
+        } else {
+          labelClassName = "text-foreground-muted";
+        }
+
+        return (
+          <div
+            key={step.id}
+            className="flex items-center gap-2 text-[10px]"
+            style={{ fontFamily: "var(--font-space-mono)" }}
+          >
+            <span className="flex h-4 w-4 items-center justify-center">
+              {indicatorContent}
+            </span>
+            <span className={labelClassName}>
+              {step.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -73,26 +143,136 @@ function ToneSelector({
 }
 
 function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
-  const [state, action] = useActionState<Layer1SummaryState, FormData>(
-    generateSummaryAndTagsAction,
-    { status: "idle" },
-  );
   const [selectedTone, setSelectedTone] = useState<SummaryTone>("normal");
 
-  const isError = state.status === "error";
-  const isSuccess = state.status === "success";
+  type SummaryResult = NonNullable<Awaited<ReturnType<typeof pollSummaryWorkflowAction>>["result"]>;
+
+  const [workflowState, setWorkflowState] = useState<{
+    status: SummaryStatus;
+    completedSteps: SummaryStepId[];
+    runId?: string;
+    error?: string;
+    result?: SummaryResult;
+  }>({ status: "idle", completedSteps: [] });
+
+  const [isPending, startTransition] = useTransition();
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamIndexRef = useRef(0);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const mergeSteps = useCallback((prev: SummaryStepId[], next: SummaryStepId[]) => {
+    return next.length ? Array.from(new Set([...prev, ...next])) : prev;
+  }, []);
+
+  const pollStatus = useCallback(async (runId: string) => {
+    const result = await pollSummaryWorkflowAction(runId, streamIndexRef.current);
+    streamIndexRef.current = result.nextIndex;
+
+    if (result.status === "completed" || result.status === "failed") {
+      stopPolling();
+      setWorkflowState(prev => ({
+        ...prev,
+        status: result.status,
+        completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
+        runId,
+        error: result.error,
+        result: result.result,
+      }));
+      return;
+    }
+
+    setWorkflowState(prev => ({
+      ...prev,
+      status: result.status,
+      completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
+    }));
+  }, [mergeSteps, stopPolling]);
+
+  const startWorkflow = useCallback(() => {
+    stopPolling();
+    streamIndexRef.current = 0;
+    setWorkflowState({ status: "starting", completedSteps: [] });
+
+    startTransition(async () => {
+      const result = await startSummaryWorkflowAction(assetId, selectedTone);
+
+      if (result.status === "failed" || !result.runId) {
+        setWorkflowState({
+          status: "failed",
+          completedSteps: [],
+          error: result.error,
+        });
+        return;
+      }
+
+      setWorkflowState({ status: "running", completedSteps: [], runId: result.runId });
+
+      pollRef.current = setInterval(() => {
+        void pollStatus(result.runId);
+      }, POLL_INTERVAL);
+
+      void pollStatus(result.runId);
+    });
+  }, [assetId, pollStatus, selectedTone, startTransition, stopPolling]);
+
+  useEffect(() => stopPolling, [stopPolling]);
+
+  const isRunning = workflowState.status === "running" || workflowState.status === "starting";
+  const isWorking = isPending || isRunning;
+  const isError = workflowState.status === "failed";
+  const isSuccess = workflowState.status === "completed";
 
   return (
     <div className="space-y-4">
-      <form action={action} className="space-y-4">
-        <input type="hidden" name="assetId" value={assetId} />
-        <input type="hidden" name="tone" value={selectedTone} />
-
+      <div className="space-y-4">
         <ToneSelector selectedTone={selectedTone} onToneChange={setSelectedTone} />
 
-        <SubmitButton />
+        <div className="flex items-center justify-between">
+          <span
+            className="text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
+            style={{ fontFamily: "var(--font-space-mono)" }}
+          >
+            Smart Summary
+          </span>
+          <StatusBadge status={workflowState.status} />
+        </div>
 
-        {isError && (
+        <button
+          type="button"
+          className="btn-action w-full"
+          onClick={startWorkflow}
+          disabled={isWorking}
+        >
+          {isWorking ? "PROCESSING..." : "SUMMARIZE & TAG"}
+          {!isWorking && (
+            <span className="arrow-icon ml-2">↗</span>
+          )}
+        </button>
+
+        {(isRunning || workflowState.completedSteps.length > 0) && (
+          <div className="border-2 border-border bg-surface-elevated p-3">
+            <StepProgress
+              steps={SUMMARY_STEPS}
+              completedSteps={workflowState.completedSteps}
+              isRunning={isRunning}
+            />
+          </div>
+        )}
+
+        {workflowState.status === "completed" && (
+          <div className="border-2 border-[#22903d] bg-[#e9f5ec] p-2 text-xs text-[#22903d]">
+            ✓ Summary generated. Ready below.
+          </div>
+        )}
+
+        {isError && workflowState.error && (
           <div className="border-3 border-border bg-surface-elevated p-4">
             <div
               className="mb-1 text-xs font-bold uppercase tracking-wider text-foreground"
@@ -100,10 +280,10 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
             >
               Generation failed
             </div>
-            <div className="text-sm text-foreground-muted">{state.error}</div>
+            <div className="text-sm text-foreground-muted">{workflowState.error}</div>
           </div>
         )}
-      </form>
+      </div>
 
       {isSuccess && (
         <div className="space-y-4">
@@ -127,7 +307,7 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
                   className="text-base font-bold"
                   style={{ fontFamily: "var(--font-syne)" }}
                 >
-                  {state.result.title}
+                  {workflowState.result?.title}
                 </div>
               </div>
 
@@ -139,7 +319,7 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
                   Description
                 </div>
                 <p className="text-sm leading-relaxed text-foreground-muted">
-                  {state.result.description}
+                  {workflowState.result?.description}
                 </p>
               </div>
 
@@ -151,56 +331,13 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
                   Tags
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {state.result.tags.map(tag => (
+                  {(workflowState.result?.tags ?? []).map(tag => (
                     <TagChip key={tag} tag={tag} />
                   ))}
                 </div>
               </div>
             </div>
           </div>
-
-          <details className="border-3 border-border bg-surface-elevated">
-            <summary
-              className="cursor-pointer border-b-2 border-border bg-surface px-4 py-2 text-xs font-bold uppercase tracking-wider hover:bg-surface-elevated"
-              style={{ fontFamily: "var(--font-space-mono)" }}
-            >
-              How it was made (inputs)
-            </summary>
-
-            <div className="space-y-3 p-4 text-sm text-foreground-muted">
-              <div>
-                <div
-                  className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                  style={{ fontFamily: "var(--font-space-mono)" }}
-                >
-                  Storyboard URL
-                </div>
-                <a
-                  className="break-all text-accent underline decoration-2 underline-offset-2 hover:text-foreground"
-                  href={state.result.storyboardUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {state.result.storyboardUrl}
-                </a>
-              </div>
-
-              {state.result.transcriptText && (
-                <div>
-                  <div
-                    className="mb-1 text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
-                    style={{ fontFamily: "var(--font-space-mono)" }}
-                  >
-                    Transcript excerpt
-                  </div>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap border-2 border-border bg-surface p-3 text-xs text-foreground-muted">
-                    {state.result.transcriptText.slice(0, 900)}
-                    {state.result.transcriptText.length > 900 ? "…" : ""}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </details>
         </div>
       )}
     </div>
