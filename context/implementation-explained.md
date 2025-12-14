@@ -93,10 +93,11 @@ async function persistTrackId(assetId: string, targetLang: string, trackId: stri
 Per the [Vercel Workflow docs](https://useworkflow.dev/docs/getting-started/next#create-your-route-handler), workflows are triggered via `start()` from `workflow/api` in a route handler:
 
 ```typescript
-// app/api/workflows/translate-captions/route.ts
-import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 import { NextResponse } from "next/server";
 import { start } from "workflow/api";
+
+// app/api/workflows/translate-captions/route.ts
+import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 
 export async function POST(request: Request) {
   const { assetId, targetLang } = await request.json();

@@ -37,4 +37,3 @@ export const AUDIO_STEPS = [
 ] as const;
 
 export type AudioStepId = typeof AUDIO_STEPS[number]["id"];
-
