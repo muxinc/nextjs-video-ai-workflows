@@ -3,6 +3,14 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
+import {
+  clearWorkflowProgress,
+  getWorkflowProgress,
+  markWorkflowCompleted,
+  markWorkflowFailed,
+  markWorkflowRunning,
+  startWorkflow as persistWorkflowStart,
+} from "@/app/lib/workflow-state";
 import type { SummaryStepId } from "@/workflows/get-summary-and-tags";
 
 import type { SummaryStatus, SummaryTone } from "./layer-1-actions";
@@ -194,9 +202,11 @@ export function Layer1SummaryAndTags({ assetId }: { assetId: string }) {
 function ToneSelector({
   selectedTone,
   onToneChange,
+  disabled,
 }: {
   selectedTone: SummaryTone;
   onToneChange: (tone: SummaryTone) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -206,6 +216,7 @@ function ToneSelector({
             key={option.value}
             type="button"
             onClick={() => onToneChange(option.value)}
+            disabled={disabled}
             className={`tone-btn ${selectedTone === option.value ? "active" : ""}`}
             style={{ fontFamily: "var(--font-space-mono)" }}
           >
@@ -232,7 +243,13 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
     runId?: string;
     error?: string;
     result?: SummaryResult;
-  }>({ status: "idle", completedSteps: [] });
+  }>(() => {
+    const stored = getWorkflowProgress(assetId, "summarizeAndTag");
+    if (stored && (stored.status === "queued" || stored.status === "running")) {
+      return { status: "starting", completedSteps: [], runId: stored.workflowRunId };
+    }
+    return { status: "idle", completedSteps: [] };
+  });
 
   const [isPending, startTransition] = useTransition();
 
@@ -256,6 +273,12 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
 
     if (result.status === "completed" || result.status === "failed") {
       stopPolling();
+      if (result.status === "completed") {
+        markWorkflowCompleted(assetId, "summarizeAndTag", undefined);
+      } else {
+        markWorkflowFailed(assetId, "summarizeAndTag", undefined, result.error || "Workflow failed.");
+        clearWorkflowProgress(assetId, "summarizeAndTag", undefined);
+      }
       setWorkflowState(prev => ({
         ...prev,
         status: result.status,
@@ -267,12 +290,15 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
       return;
     }
 
+    if (result.status === "running") {
+      markWorkflowRunning(assetId, "summarizeAndTag");
+    }
     setWorkflowState(prev => ({
       ...prev,
       status: result.status,
       completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
     }));
-  }, [mergeSteps, stopPolling]);
+  }, [assetId, mergeSteps, stopPolling]);
 
   const startWorkflow = useCallback(() => {
     stopPolling();
@@ -292,7 +318,8 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
         return;
       }
 
-      setWorkflowState({ status: "running", completedSteps: [], runId: result.runId });
+      persistWorkflowStart(assetId, "summarizeAndTag", undefined, result.runId);
+      setWorkflowState({ status: "starting", completedSteps: [], runId: result.runId });
 
       pollRef.current = setInterval(() => {
         void pollStatus(result.runId);
@@ -304,6 +331,29 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
 
   useEffect(() => stopPolling, [stopPolling]);
 
+  useEffect(() => {
+    if (!workflowState.runId) {
+      return;
+    }
+
+    if (pollRef.current) {
+      return;
+    }
+
+    if (workflowState.status === "starting" || workflowState.status === "running") {
+      pollRef.current = setInterval(() => {
+        void pollStatus(workflowState.runId!);
+      }, POLL_INTERVAL);
+      void pollStatus(workflowState.runId);
+      return () => {
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      };
+    }
+  }, [pollStatus, workflowState.runId, workflowState.status]);
+
   const isRunning = workflowState.status === "running" || workflowState.status === "starting";
   const isWorking = isPending || isRunning;
   const isError = workflowState.status === "failed";
@@ -312,7 +362,7 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
   return (
     <div className="space-y-4">
       <div className="space-y-4">
-        <ToneSelector selectedTone={selectedTone} onToneChange={setSelectedTone} />
+        <ToneSelector selectedTone={selectedTone} onToneChange={setSelectedTone} disabled={isWorking} />
 
         <div className="flex items-center justify-between">
           <span

@@ -4,6 +4,16 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import {
+  clearWorkflowProgress,
+  getAllInFlightWorkflows,
+  getWorkflowProgress,
+  markWorkflowCompleted,
+  markWorkflowFailed,
+  markWorkflowRunning,
+  startWorkflow as persistWorkflowStart,
+} from "@/app/lib/workflow-state";
+
+import {
   isAudioTrackReadyAction,
   isCaptionTrackReadyAction,
   pollAudioTranslationAction,
@@ -333,6 +343,7 @@ function mergeSteps<TStep extends string>(prev: TStep[], next: TStep[]) {
 
 function useTranslationWorkflow<TStep extends string>({
   assetId,
+  workflowType,
   startAction,
   pollAction,
   targetLang,
@@ -340,6 +351,7 @@ function useTranslationWorkflow<TStep extends string>({
 }: {
   assetId: string;
   targetLang: string;
+  workflowType: "translateCaptions" | "translateAudio";
   startAction: (assetId: string, targetLang: string) => Promise<{ runId: string; status: TranslationStatus; error?: string }>;
   pollAction: (runId: string, startIndex: number) => Promise<{ status: TranslationStatus; completedSteps: TStep[]; nextIndex: number; error?: string }>;
   onCompleted?: () => Promise<void>;
@@ -350,6 +362,11 @@ function useTranslationWorkflow<TStep extends string>({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamIndexRef = useRef(0);
   const autoRefreshDoneRef = useRef(false);
+  const onCompletedRef = useRef(onCompleted);
+
+  useEffect(() => {
+    onCompletedRef.current = onCompleted;
+  }, [onCompleted]);
 
   const isRunning = state.status === "running" || state.status === "starting";
 
@@ -374,22 +391,33 @@ function useTranslationWorkflow<TStep extends string>({
         error: result.error,
       }));
 
-      if (result.status === "completed" && onCompleted && !autoRefreshDoneRef.current) {
+      if (result.status === "completed") {
+        markWorkflowCompleted(assetId, workflowType, targetLang);
+      } else {
+        markWorkflowFailed(assetId, workflowType, targetLang, result.error || "Workflow failed.");
+        clearWorkflowProgress(assetId, workflowType, targetLang);
+      }
+
+      const onCompletedFn = onCompletedRef.current;
+      if (result.status === "completed" && onCompletedFn && !autoRefreshDoneRef.current) {
         autoRefreshDoneRef.current = true;
         setState(prev => ({ ...prev, isUpdatingPlayer: true }));
-        await onCompleted();
+        await onCompletedFn();
         setState(prev => ({ ...prev, isUpdatingPlayer: false }));
       }
 
       return;
     }
 
+    if (result.status === "running") {
+      markWorkflowRunning(assetId, workflowType, targetLang);
+    }
     setState(prev => ({
       ...prev,
       status: result.status,
       completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
     }));
-  }, [onCompleted, pollAction, stopPolling]);
+  }, [assetId, pollAction, stopPolling, targetLang, workflowType]);
 
   const startWorkflow = useCallback(() => {
     stopPolling();
@@ -405,7 +433,8 @@ function useTranslationWorkflow<TStep extends string>({
         return;
       }
 
-      setState({ status: "running", completedSteps: [], runId: result.runId });
+      persistWorkflowStart(assetId, workflowType, targetLang, result.runId);
+      setState({ status: "starting", completedSteps: [], runId: result.runId });
 
       pollRef.current = setInterval(() => {
         void pollStatus(result.runId);
@@ -413,9 +442,54 @@ function useTranslationWorkflow<TStep extends string>({
 
       void pollStatus(result.runId);
     });
-  }, [assetId, pollStatus, startAction, stopPolling, targetLang]);
+  }, [assetId, pollStatus, startAction, stopPolling, targetLang, workflowType]);
 
   useEffect(() => stopPolling, [stopPolling]);
+
+  useEffect(() => {
+    const stored = getWorkflowProgress(assetId, workflowType, targetLang);
+    if (!stored) {
+      return;
+    }
+
+    if (stored.status !== "queued" && stored.status !== "running") {
+      return;
+    }
+
+    // Avoid rehydrating / starting polling multiple times (can cause infinite setState loops).
+    if (pollRef.current) {
+      return;
+    }
+
+    streamIndexRef.current = 0;
+    autoRefreshDoneRef.current = false;
+    setState((prev) => {
+      if (
+        prev.runId === stored.workflowRunId &&
+        (prev.status === "starting" || prev.status === "running")
+      ) {
+        return prev;
+      }
+      return {
+        status: stored.status === "queued" ? "starting" : "running",
+        completedSteps: [],
+        runId: stored.workflowRunId,
+      };
+    });
+
+    pollRef.current = setInterval(() => {
+      void pollStatus(stored.workflowRunId);
+    }, POLL_INTERVAL);
+
+    void pollStatus(stored.workflowRunId);
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [assetId, pollStatus, targetLang, workflowType]);
 
   return { isPending, isRunning, startWorkflow, state };
 }
@@ -508,9 +582,23 @@ export function Layer2Localization({ assetId }: Layer2LocalizationProps) {
   const { refreshPlayer } = usePlayer();
   const [selectedLang, setSelectedLang] = useState<TargetLanguage>(TARGET_LANGUAGES[0]);
   const shouldReduceMotion = useReducedMotion();
+  useEffect(() => {
+    const workflows = getAllInFlightWorkflows(assetId)
+      .filter(w => w.workflowType === "translateCaptions" || w.workflowType === "translateAudio")
+      .sort((a, b) => b.progress.startedAt.localeCompare(a.progress.startedAt));
+
+    const withLang = workflows.find(w => w.targetLang);
+    if (withLang?.targetLang) {
+      const match = TARGET_LANGUAGES.find(l => l.code === withLang.targetLang);
+      if (match) {
+        setSelectedLang(match);
+      }
+    }
+  }, [assetId]);
 
   const captions = useTranslationWorkflow<CaptionStepId>({
     assetId,
+    workflowType: "translateCaptions",
     targetLang: selectedLang.code,
     startAction: startCaptionTranslationAction,
     pollAction: pollCaptionTranslationAction,
@@ -527,6 +615,7 @@ export function Layer2Localization({ assetId }: Layer2LocalizationProps) {
 
   const audio = useTranslationWorkflow<AudioStepId>({
     assetId,
+    workflowType: "translateAudio",
     targetLang: selectedLang.code,
     startAction: startAudioTranslationAction,
     pollAction: pollAudioTranslationAction,

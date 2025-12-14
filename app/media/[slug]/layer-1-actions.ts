@@ -4,18 +4,12 @@ import { getRun, start } from "workflow/api";
 
 import { env } from "@/app/lib/env";
 import { getSummaryAndTagsWorkflow } from "@/workflows/get-summary-and-tags";
-import type { SummaryStepId, SummaryWorkflowResult } from "@/workflows/get-summary-and-tags";
-import type { getSummaryAndTags } from "@mux/ai/workflows";
+import type { GetSummaryAndTagsResult, SummaryStepId, SummaryWorkflowResult } from "@/workflows/get-summary-and-tags";
 
 export type SummaryTone = "normal" | "professional" | "sassy";
 
-export type Layer1SummaryState =
-  { status: "idle" } |
-  { status: "running" } |
-  { status: "success"; result: Awaited<ReturnType<typeof getSummaryAndTags>> } |
-  { status: "error"; error: string };
-
 export type SummaryStatus = "idle" | "starting" | "running" | "completed" | "failed";
+export type SummaryResult = NonNullable<GetSummaryAndTagsResult>;
 
 interface ProgressEvent<TStep extends string> {
   type: "current" | "completed";
@@ -34,7 +28,7 @@ export interface SummaryWorkflowPollResult {
   currentStep?: SummaryStepId;
   nextIndex: number;
   error?: string;
-  result?: Awaited<ReturnType<typeof getSummaryAndTags>>;
+  result?: SummaryResult;
 }
 
 function getProviderConfig() {
@@ -189,54 +183,5 @@ export async function pollSummaryWorkflowAction(
       nextIndex: startIndex,
       error: message,
     };
-  }
-}
-
-export async function generateSummaryAndTagsAction(
-  _prevState: Layer1SummaryState,
-  formData: FormData,
-): Promise<Layer1SummaryState> {
-  const assetId = String(formData.get("assetId") || "");
-  const toneInput = formData.get("tone");
-  const tone: SummaryTone =
-    (toneInput === "professional" || toneInput === "sassy") ?
-      toneInput :
-      "normal";
-
-  if (!assetId) {
-    return { status: "error", error: "Missing assetId." };
-  }
-
-  const providerConfig = getProviderConfig();
-  if (!providerConfig) {
-    return {
-      status: "error",
-      error:
-        "No AI provider API key found. Set one of OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_GENERATIVE_AI_API_KEY.",
-    };
-  }
-
-  try {
-    const run = await start(getSummaryAndTagsWorkflow, [assetId, {
-      muxTokenId: env.MUX_TOKEN_ID,
-      muxTokenSecret: env.MUX_TOKEN_SECRET,
-      tone,
-      includeTranscript: true,
-      cleanTranscript: true,
-      ...providerConfig,
-    }]);
-
-    const workflowResult = await run.returnValue;
-    if (!workflowResult.success || !workflowResult.result) {
-      return {
-        status: "error",
-        error: workflowResult.error || "Failed to generate summary.",
-      };
-    }
-
-    return { status: "success", result: workflowResult.result };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to generate summary.";
-    return { status: "error", error: message };
   }
 }
