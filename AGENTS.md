@@ -80,6 +80,13 @@ All env vars are validated at startup via `app/lib/env.ts` using Zod.
 MUX_TOKEN_ID=
 MUX_TOKEN_SECRET=
 
+# OpenAI (required for embeddings)
+OPENAI_API_KEY=
+
+# Supabase (for persisted asset metadata and search)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
 # ElevenLabs (for translateAudio)
 ELEVENLABS_API_KEY=
 
@@ -98,8 +105,7 @@ S3_SECRET_ACCESS_KEY=
 MUX_SIGNING_KEY=
 MUX_PRIVATE_KEY=
 
-# AI providers (at least one is needed)
-OPENAI_API_KEY=
+# Additional AI providers
 ANTHROPIC_API_KEY=
 GOOGLE_GENERATIVE_AI_API_KEY=
 ```
