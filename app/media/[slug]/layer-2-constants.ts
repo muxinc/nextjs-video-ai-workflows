@@ -4,6 +4,8 @@
 // server and client components.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import type { WorkflowStatus } from "../types";
+
 export interface TargetLanguage {
   code: string;
   name: string;
@@ -18,7 +20,7 @@ export const TARGET_LANGUAGES: TargetLanguage[] = [
   { code: "ja", name: "Japanese", flag: "🇯🇵" },
 ];
 
-export type TranslationStatus = "idle" | "starting" | "running" | "completed" | "failed";
+export type TranslationStatus = WorkflowStatus;
 
 // Step definitions for caption translation progress tracking
 export const CAPTION_STEPS = [

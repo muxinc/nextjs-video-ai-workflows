@@ -3,18 +3,14 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
+import type { TranscriptCue } from "@/app/media/types";
+import { formatTime } from "@/app/media/utils";
+
 import { searchTranscript } from "./transcript-actions";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
-
-interface TranscriptCue {
-  id: string;
-  startTime: number;
-  endTime: number;
-  text: string;
-}
 
 interface TranscriptPanelProps {
   cues: TranscriptCue[];
@@ -22,16 +18,6 @@ interface TranscriptPanelProps {
   onSeek?: (time: number) => void;
   muxAssetId?: string;
   title?: string;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ─────────────────────────────────────────────────────────────────────────────
-
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

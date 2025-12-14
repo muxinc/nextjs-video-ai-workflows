@@ -1,18 +1,13 @@
 "use client";
 
+import type { TranscriptCue } from "@/app/media/types";
+
 import { TranscriptPanel } from "./transcript-panel";
 import { usePlayer } from "./use-player";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
-
-interface TranscriptCue {
-  id: string;
-  startTime: number;
-  endTime: number;
-  text: string;
-}
 
 interface SyncedTranscriptProps {
   cues: TranscriptCue[];

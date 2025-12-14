@@ -1,5 +1,7 @@
 "use client";
 
+import type { TranscriptCue } from "@/app/media/types";
+
 import { Layer1SummaryAndTags } from "./layer-1-summary";
 import { Layer2Localization } from "./layer-2-localization";
 import { PlayerProvider } from "./player-context-provider";
@@ -9,13 +11,6 @@ import { VideoPlayer } from "./video-player";
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
-
-interface TranscriptCue {
-  id: string;
-  startTime: number;
-  endTime: number;
-  text: string;
-}
 
 interface MediaContentProps {
   playbackId: string;

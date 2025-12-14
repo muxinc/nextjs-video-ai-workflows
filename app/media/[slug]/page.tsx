@@ -4,11 +4,10 @@ import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
 import { getPlaybackIdForAsset } from "@/app/lib/mux";
 import { createClient } from "@/app/lib/supabase/server";
-import type { Tables } from "@/app/lib/supabase/types";
+import type { TranscriptCue } from "@/app/media/types";
+import { getVideoTitle } from "@/app/media/utils";
 
 import { MediaContent } from "./media-content";
-
-type Video = Tables<"videos">;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -16,21 +15,6 @@ type Video = Tables<"videos">;
 
 interface MediaDetailPageProps {
   params: Promise<{ slug: string }>;
-}
-
-interface ParsedVttCue {
-  id: string;
-  startTime: number;
-  endTime: number;
-  text: string;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ─────────────────────────────────────────────────────────────────────────────
-
-function getVideoTitle(video: Video): string {
-  return video.title ?? `Talk ${video.id.slice(0, 8)}`;
 }
 
 /**
@@ -56,8 +40,8 @@ function parseVttTime(timeStr: string): number {
 /**
  * Parses VTT content into structured cues.
  */
-function parseVtt(vttContent: string): ParsedVttCue[] {
-  const cues: ParsedVttCue[] = [];
+function parseVtt(vttContent: string): TranscriptCue[] {
+  const cues: TranscriptCue[] = [];
   const lines = vttContent.split("\n");
 
   let i = 0;
@@ -133,7 +117,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
   const title = getVideoTitle(video);
 
   // Parse transcript from Supabase VTT
-  const transcriptCues: ParsedVttCue[] = video.transcript_en_vtt ?
+  const transcriptCues: TranscriptCue[] = video.transcript_en_vtt ?
       parseVtt(video.transcript_en_vtt) :
       [];
 
