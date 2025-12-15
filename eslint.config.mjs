@@ -1,5 +1,6 @@
 import antfu from "@antfu/eslint-config";
 import nextPlugin from "@next/eslint-plugin-next";
+import remotionPlugin from "@remotion/eslint-plugin";
 
 export default antfu({
   type: "app",
@@ -60,5 +61,14 @@ export default antfu({
   rules: {
     ...nextPlugin.configs.recommended.rules,
     ...nextPlugin.configs["core-web-vitals"].rules,
+  },
+}, {
+  // Remotion specific rules
+  files: ["remotion/**/*.{ts,tsx}"],
+  plugins: {
+    "@remotion": remotionPlugin,
+  },
+  rules: {
+    ...remotionPlugin.configs.recommended.rules,
   },
 });
