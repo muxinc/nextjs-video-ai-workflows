@@ -8,9 +8,10 @@
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "remotion:studio": "remotion studio remotion/index.ts",
+    "remotion:studio": "remotion studio remotion/index.ts --port 5432",
     "remotion:render:local": "remotion render",
-    "remotion:deploy": "node remotion/deploy.mjs"
+    "remotion:deploy": "node remotion/deploy.mjs",
+    "visualize:workflows": "npx workflow web"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.86",
@@ -20,6 +21,7 @@
     "@remotion/cli": "4.0.390",
     "@remotion/google-fonts": "4.0.390",
     "@remotion/lambda": "4.0.390",
+    "@remotion/media-utils": "4.0.390",
     "@remotion/tailwind-v4": "4.0.390",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.87.1",

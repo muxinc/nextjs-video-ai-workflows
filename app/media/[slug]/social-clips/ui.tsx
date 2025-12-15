@@ -12,13 +12,14 @@ import {
   startWorkflow as persistWorkflowStart,
 } from "@/app/lib/workflow-state";
 import { mergeSteps } from "@/app/media/[slug]/workflows-panel/helpers";
-import { DEFAULT_COMPOSITION_ID } from "@/remotion/default-composition/constants";
+import type { AspectRatio } from "@/remotion/social-clip/constants";
+import { ASPECT_RATIO_CONFIG } from "@/remotion/social-clip/constants";
 
-import type { WorkflowStatus } from "../../types";
-import { StatusBadge, StepProgress } from "../workflows-panel/ui";
+import type { TranscriptCue, WorkflowStatus } from "../../types";
+import { CompletedStepIcon, CurrentStepIcon, PendingStepIcon, StatusBadge } from "../workflows-panel/ui";
 
-import type { RenderStepId, RenderVideoResult } from "./actions";
-import { pollRenderWorkflowAction, startRenderWorkflowAction } from "./actions";
+import type { RenderStepId, RenderVideoResult, SocialClipInput } from "./actions";
+import { pollSocialClipsRenderAction, startSocialClipsRenderAction } from "./actions";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -27,51 +28,274 @@ import { pollRenderWorkflowAction, startRenderWorkflowAction } from "./actions";
 const POLL_INTERVAL = 1500;
 
 const RENDER_STEPS: readonly { id: RenderStepId; label: string }[] = [
-  { id: "prepare", label: "Preparing render" },
-  { id: "render", label: "Rendering video" },
-  { id: "finalize", label: "Finalizing output" },
+  { id: "prepare", label: "Preparing" },
+  { id: "render", label: "Rendering" },
+  { id: "finalize", label: "Finalizing" },
 ] as const;
 
+const ASPECT_RATIO_LABELS: Record<AspectRatio, string> = {
+  portrait: "9:16",
+  square: "1:1",
+  landscape: "16:9",
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Test Render Component
+// Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_INPUT_PROPS = { title: "Hello friend" };
+interface ClipState {
+  status: WorkflowStatus;
+  completedSteps: RenderStepId[];
+  runId?: string;
+  nextIndex: number;
+  error?: string;
+  result?: RenderVideoResult;
+  renderProgress?: number;
+}
 
-export function Layer3SocialClips({ assetId }: { assetId: string }) {
-  const fileName = `test-render-${assetId}.mp4`;
+interface Layer3SocialClipsProps {
+  assetId: string;
+  playbackId: string;
+  playbackPolicy: "public" | "signed";
+  transcriptCues: TranscriptCue[];
+  title: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: Get clip timing and captions from transcript cues
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ClipData {
+  startTime: number;
+  endTime: number;
+  captions: TranscriptCue[];
+}
+
+function getClipDataFromCues(cues: TranscriptCue[]): ClipData {
+  if (cues.length === 0) {
+    // Default to first 15 seconds if no cues
+    return { startTime: 0, endTime: 15, captions: [] };
+  }
+
+  // Use a segment from the middle of the video for interesting content
+  // Take ~15 seconds worth of content from the first quarter of cues
+  const quarterIndex = Math.floor(cues.length / 4);
+  const startCue = cues[Math.max(0, quarterIndex)];
+  const startTime = startCue.startTime;
+
+  // Find end time ~15 seconds later
+  const targetEndTime = startTime + 15;
+  let endCue = startCue;
+  for (const cue of cues.slice(quarterIndex)) {
+    if (cue.endTime >= targetEndTime) {
+      endCue = cue;
+      break;
+    }
+    endCue = cue;
+  }
+
+  const endTime = Math.max(endCue.endTime, startTime + 5);
+
+  // Filter captions to only include those within the clip time range
+  const captions = cues.filter(
+    cue => cue.startTime >= startTime && cue.endTime <= endTime,
+  );
+
+  return { startTime, endTime, captions };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mini Step Progress (compact for clip cards)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function MiniStepProgress({
+  completedSteps,
+  isRunning,
+  renderProgress,
+  shouldReduceMotion,
+}: {
+  completedSteps: RenderStepId[];
+  isRunning: boolean;
+  renderProgress?: number;
+  shouldReduceMotion: boolean | null;
+}) {
+  const currentStepIndex = completedSteps.length;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {RENDER_STEPS.map((step, index) => {
+        const isCompleted = completedSteps.includes(step.id);
+        const isCurrent = isRunning && index === currentStepIndex;
+
+        let icon: React.ReactNode;
+        let iconClassName: string;
+        if (isCompleted) {
+          icon = <CompletedStepIcon shouldReduceMotion={shouldReduceMotion} />;
+          iconClassName = "text-[#22903d]";
+        } else if (isCurrent) {
+          icon = <CurrentStepIcon shouldReduceMotion={shouldReduceMotion} />;
+          iconClassName = "text-[#1c65be]";
+        } else {
+          icon = <PendingStepIcon />;
+          iconClassName = "text-foreground-muted";
+        }
+
+        return (
+          <div
+            key={step.id}
+            className="relative"
+            title={
+              isCurrent && step.id === "render" && renderProgress !== undefined ?
+                `${step.label}: ${Math.round(renderProgress * 100)}%` :
+                step.label
+            }
+          >
+            <span className={`flex h-4 w-4 items-center justify-center ${iconClassName}`}>
+              {icon}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clip Card Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ClipCard({
+  aspectRatio,
+  state,
+  shouldReduceMotion,
+}: {
+  aspectRatio: AspectRatio;
+  state: ClipState;
+  shouldReduceMotion: boolean | null;
+}) {
+  const config = ASPECT_RATIO_CONFIG[aspectRatio];
+  const isRunning = state.status === "running" || state.status === "starting";
+  const isCompleted = state.status === "completed";
+  const isFailed = state.status === "failed";
+
+  // Calculate aspect ratio for preview box
+  const previewWidth = 48;
+  const previewHeight = Math.round(previewWidth * (config.height / config.width));
+
+  return (
+    <motion.div
+      className="flex items-center gap-3 border-2 border-border bg-surface-elevated p-2"
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+    >
+      {/* Aspect ratio preview box */}
+      <div
+        className="flex shrink-0 items-center justify-center border border-border bg-[#1a1a1a]"
+        style={{
+          width: previewWidth,
+          height: Math.min(previewHeight, 64),
+        }}
+      >
+        <span
+          className="text-[9px] font-bold text-white/60"
+          style={{ fontFamily: "var(--font-space-mono)" }}
+        >
+          {ASPECT_RATIO_LABELS[aspectRatio]}
+        </span>
+      </div>
+
+      {/* Status area */}
+      <div className="flex flex-1 flex-col gap-1">
+        <span
+          className="text-[10px] font-medium uppercase tracking-wide text-foreground-muted"
+          style={{ fontFamily: "var(--font-space-mono)" }}
+        >
+          {config.label}
+        </span>
+
+        {/* Progress or status */}
+        {isRunning && (
+          <MiniStepProgress
+            completedSteps={state.completedSteps}
+            isRunning={isRunning}
+            renderProgress={state.renderProgress}
+            shouldReduceMotion={shouldReduceMotion}
+          />
+        )}
+
+        {isFailed && state.error && (
+          <span className="text-[10px] text-[#dc2626]">Error</span>
+        )}
+      </div>
+
+      {/* Download button for completed clips */}
+      {isCompleted && state.result && (
+        <a
+          href={state.result.url}
+          download={`social-clip-${aspectRatio}.mp4`}
+          className="flex h-8 w-8 items-center justify-center border-2 border-border bg-accent text-foreground transition-colors hover:bg-[#ff7f24]"
+          title={`Download (${(state.result.size / 1024 / 1024).toFixed(1)} MB)`}
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="square" strokeLinejoin="miter" d="M19 14v5a2 2 0 01-2 2H7a2 2 0 01-2-2v-5M12 3v12m0 0l-4-4m4 4l4-4" />
+          </svg>
+        </a>
+      )}
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Social Clips Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function Layer3SocialClips({ assetId, playbackId, playbackPolicy, transcriptCues, title }: Layer3SocialClipsProps) {
   const shouldReduceMotion = useReducedMotion();
 
-  const [workflowState, setWorkflowState] = useState<{
-    status: WorkflowStatus;
-    completedSteps: RenderStepId[];
-    runId?: string;
-    error?: string;
-    result?: RenderVideoResult;
-    renderProgress?: number;
-  }>(() => {
-    if (typeof window === "undefined") {
-      return { status: "idle", completedSteps: [] };
-    }
-    const stored = getWorkflowProgress(assetId, "renderVideo");
-    if (stored && (stored.status === "queued" || stored.status === "running")) {
-      // Check for stale localStorage entries (> 30 min old)
-      const startedAtMs = Date.parse(stored.startedAt);
-      const ageMs = Number.isFinite(startedAtMs) ? Date.now() - startedAtMs : Number.POSITIVE_INFINITY;
-      const staleAfterMs = 30 * 60 * 1000;
-      if (ageMs > staleAfterMs) {
-        return { status: "idle", completedSteps: [] };
+  // Initialize clip states
+  const initialClipStates = (): Record<AspectRatio, ClipState> => {
+    const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
+    const states: Record<AspectRatio, ClipState> = {} as Record<AspectRatio, ClipState>;
+
+    for (const ar of aspectRatios) {
+      let stored: ReturnType<typeof getWorkflowProgress> = null;
+      if (typeof window !== "undefined") {
+        stored = getWorkflowProgress(assetId, "socialClip", ar);
       }
-      return { status: "starting", completedSteps: [], runId: stored.workflowRunId };
+
+      if (stored && (stored.status === "queued" || stored.status === "running")) {
+        const startedAtMs = Date.parse(stored.startedAt);
+        const ageMs = Number.isFinite(startedAtMs) ? Date.now() - startedAtMs : Number.POSITIVE_INFINITY;
+        const staleAfterMs = 30 * 60 * 1000;
+
+        if (ageMs <= staleAfterMs) {
+          states[ar] = {
+            status: "starting",
+            completedSteps: [],
+            runId: stored.workflowRunId,
+            nextIndex: 0,
+          };
+          continue;
+        }
+      }
+
+      states[ar] = { status: "idle", completedSteps: [], nextIndex: 0 };
     }
-    return { status: "idle", completedSteps: [] };
-  });
 
+    return states;
+  };
+
+  const [clipStates, setClipStates] = useState<Record<AspectRatio, ClipState>>(initialClipStates);
   const [isPending, startTransition] = useTransition();
-
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const streamIndexRef = useRef(0);
   const isPollInFlightRef = useRef(false);
+
+  // Compute clip data (timing + captions) from transcript cues
+  const clipData = useMemo(
+    () => getClipDataFromCues(transcriptCues),
+    [transcriptCues],
+  );
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -80,130 +304,188 @@ export function Layer3SocialClips({ assetId }: { assetId: string }) {
     }
   }, []);
 
-  const pollStatus = useCallback(async (runId: string) => {
+  const pollStatus = useCallback(async () => {
     if (isPollInFlightRef.current) {
       return;
     }
     isPollInFlightRef.current = true;
 
     try {
-      const result = await pollRenderWorkflowAction(runId, streamIndexRef.current);
-      streamIndexRef.current = result.nextIndex;
-
-      if (result.status === "completed" || result.status === "failed") {
-        stopPolling();
-        if (result.status === "completed") {
-          markWorkflowCompleted(assetId, "renderVideo", undefined);
-        } else {
-          markWorkflowFailed(assetId, "renderVideo", undefined, result.error || "Workflow failed.");
-          clearWorkflowProgress(assetId, "renderVideo", undefined);
-        }
-        setWorkflowState(prev => ({
-          ...prev,
-          status: result.status,
-          completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
-          runId,
-          error: result.error,
-          result: result.result,
+      // Get clips that are still running
+      const runningClips = (Object.entries(clipStates) as [AspectRatio, ClipState][])
+        .filter(([, state]) => state.runId && (state.status === "running" || state.status === "starting"))
+        .map(([ar, state]) => ({
+          aspectRatio: ar,
+          runId: state.runId!,
+          nextIndex: state.nextIndex,
         }));
+
+      if (runningClips.length === 0) {
+        stopPolling();
         return;
       }
 
-      if (result.status === "running") {
-        markWorkflowRunning(assetId, "renderVideo");
+      const result = await pollSocialClipsRenderAction(runningClips);
+
+      setClipStates((prev) => {
+        const updated = { ...prev };
+        for (const clipResult of result.clips) {
+          const ar = clipResult.aspectRatio;
+          const current = updated[ar];
+
+          if (clipResult.status === "completed" || clipResult.status === "failed") {
+            if (clipResult.status === "completed") {
+              markWorkflowCompleted(assetId, "socialClip", ar);
+            } else {
+              markWorkflowFailed(assetId, "socialClip", ar, clipResult.error || "Workflow failed.");
+              clearWorkflowProgress(assetId, "socialClip", ar);
+            }
+          } else if (clipResult.status === "running") {
+            markWorkflowRunning(assetId, "socialClip", ar);
+          }
+
+          updated[ar] = {
+            ...current,
+            status: clipResult.status,
+            completedSteps: mergeSteps(current.completedSteps, clipResult.completedSteps),
+            nextIndex: clipResult.nextIndex,
+            error: clipResult.error,
+            result: clipResult.result,
+            renderProgress: clipResult.renderProgress ?? current.renderProgress,
+          };
+        }
+        return updated;
+      });
+
+      // Check if all clips are done
+      const allDone = result.clips.every(c => c.status === "completed" || c.status === "failed");
+      if (allDone) {
+        stopPolling();
       }
-      setWorkflowState(prev => ({
-        ...prev,
-        status: result.status,
-        completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
-        renderProgress: result.renderProgress ?? prev.renderProgress,
-      }));
     } finally {
       isPollInFlightRef.current = false;
     }
-  }, [assetId, stopPolling]);
+  }, [assetId, clipStates, stopPolling]);
 
-  const startWorkflow = useCallback(() => {
+  const startRender = useCallback(() => {
     stopPolling();
-    streamIndexRef.current = 0;
-    setWorkflowState({ status: "starting", completedSteps: [] });
+
+    // Reset all clips to starting state
+    const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
+    const resetStates: Record<AspectRatio, ClipState> = {} as Record<AspectRatio, ClipState>;
+    for (const ar of aspectRatios) {
+      resetStates[ar] = { status: "starting", completedSteps: [], nextIndex: 0 };
+    }
+    setClipStates(resetStates);
 
     startTransition(async () => {
-      const result = await startRenderWorkflowAction({
+      const clipInput: SocialClipInput = {
+        playbackId,
+        playbackPolicy,
+        startTime: clipData.startTime,
+        endTime: clipData.endTime,
+        title,
+        captions: clipData.captions,
+      };
+
+      const result = await startSocialClipsRenderAction({
         assetId,
-        compositionId: DEFAULT_COMPOSITION_ID,
-        inputProps: DEFAULT_INPUT_PROPS,
-        fileName,
+        clip: clipInput,
       });
 
-      if (result.status === "failed" || !result.runId) {
-        setWorkflowState({
-          status: "failed",
-          completedSteps: [],
-          error: result.error,
-        });
-        return;
-      }
+      // Update states with run IDs
+      setClipStates((prev) => {
+        const updated = { ...prev };
+        for (const clipResult of result.clips) {
+          const ar = clipResult.aspectRatio;
+          if (clipResult.status === "failed") {
+            updated[ar] = {
+              status: "failed",
+              completedSteps: [],
+              nextIndex: 0,
+              error: clipResult.error,
+            };
+          } else {
+            persistWorkflowStart(assetId, "socialClip", ar, clipResult.runId);
+            updated[ar] = {
+              status: "starting",
+              completedSteps: [],
+              runId: clipResult.runId,
+              nextIndex: 0,
+            };
+          }
+        }
+        return updated;
+      });
 
-      persistWorkflowStart(assetId, "renderVideo", undefined, result.runId);
-      setWorkflowState({ status: "starting", completedSteps: [], runId: result.runId });
-
+      // Start polling
       pollRef.current = setInterval(() => {
-        void pollStatus(result.runId);
+        void pollStatus();
       }, POLL_INTERVAL);
-
-      void pollStatus(result.runId);
+      void pollStatus();
     });
-  }, [assetId, fileName, pollStatus, stopPolling]);
+  }, [assetId, playbackId, playbackPolicy, clipData, title, pollStatus, stopPolling]);
 
   const resetWorkflow = useCallback(() => {
-    clearWorkflowProgress(assetId, "renderVideo", undefined);
-    setWorkflowState({ status: "idle", completedSteps: [] });
+    const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
+    for (const ar of aspectRatios) {
+      clearWorkflowProgress(assetId, "socialClip", ar);
+    }
+    const resetStates: Record<AspectRatio, ClipState> = {} as Record<AspectRatio, ClipState>;
+    for (const ar of aspectRatios) {
+      resetStates[ar] = { status: "idle", completedSteps: [], nextIndex: 0 };
+    }
+    setClipStates(resetStates);
   }, [assetId]);
 
-  // Cleanup polling on unmount
+  // Cleanup on unmount
   useEffect(() => stopPolling, [stopPolling]);
 
-  // Resume polling if we rehydrated an in-flight workflow from localStorage
+  // Resume polling for in-flight workflows
   useEffect(() => {
-    if (!workflowState.runId) {
-      return;
-    }
+    const hasRunningClips = Object.values(clipStates).some(
+      s => s.runId && (s.status === "starting" || s.status === "running"),
+    );
 
-    if (pollRef.current) {
-      return;
-    }
-
-    if (workflowState.status === "starting" || workflowState.status === "running") {
+    if (hasRunningClips && !pollRef.current) {
       pollRef.current = setInterval(() => {
-        void pollStatus(workflowState.runId!);
+        void pollStatus();
       }, POLL_INTERVAL);
-      void pollStatus(workflowState.runId);
-      return () => {
-        if (pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-      };
+      void pollStatus();
     }
-  }, [pollStatus, workflowState.runId, workflowState.status]);
 
-  const isRunning = workflowState.status === "running" || workflowState.status === "starting";
-  const isWorking = isPending || isRunning;
-  const showSteps = isRunning || workflowState.completedSteps.length > 0;
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [clipStates, pollStatus]);
 
-  const buttonText = useMemo(() => {
-    if (!isWorking) {
-      return "[TEST RENDER]";
-    }
-    if (workflowState.status === "starting") {
-      return "QUEUING...";
-    }
-    if (workflowState.renderProgress !== undefined) {
-      return `RENDERING ${Math.round(workflowState.renderProgress * 100)}%`;
-    }
-    return "PROCESSING...";
-  }, [isWorking, workflowState.status, workflowState.renderProgress]);
+  // Compute aggregate status
+  const states = Object.values(clipStates);
+  const anyRunning = states.some(s => s.status === "running" || s.status === "starting");
+  const anyFailed = states.some(s => s.status === "failed");
+  const allCompleted = states.every(s => s.status === "completed");
+  const allIdle = states.every(s => s.status === "idle");
+
+  const aggregateStatus: WorkflowStatus = anyRunning ?
+    "running" :
+    anyFailed ?
+      "failed" :
+      allCompleted ?
+        "completed" :
+        "idle";
+
+  const isWorking = isPending || anyRunning;
+  const showClipCards = anyRunning || allCompleted || anyFailed;
+
+  // Format clip timing for display
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   return (
     <div className="space-y-4">
@@ -213,103 +495,93 @@ export function Layer3SocialClips({ assetId }: { assetId: string }) {
           className="text-[10px] font-bold uppercase tracking-wider text-foreground-muted"
           style={{ fontFamily: "var(--font-space-mono)" }}
         >
-          Video Render
+          Social Clips
         </span>
-        <StatusBadge status={workflowState.status} />
+        <StatusBadge status={aggregateStatus} />
       </div>
 
-      {/* Action Button */}
-      {workflowState.status !== "completed" && (
+      {/* Clip timing info */}
+      {!allIdle && (
+        <div
+          className="text-[10px] text-foreground-muted"
+          style={{ fontFamily: "var(--font-space-mono)" }}
+        >
+          Clip:
+          {" "}
+          {formatTime(clipData.startTime)}
+          {" → "}
+          {formatTime(clipData.endTime)}
+        </div>
+      )}
+
+      {/* Render Button */}
+      {!allCompleted && (
         <button
           type="button"
           className="btn-action w-full"
-          onClick={startWorkflow}
+          onClick={startRender}
           disabled={isWorking}
         >
           {isWorking && (
             <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
           )}
-          {buttonText}
+          {isWorking ? "RENDERING..." : "[RENDER VIDEOS]"}
           {!isWorking && (
             <span className="arrow-icon ml-2">↗</span>
           )}
         </button>
       )}
 
-      {/* Step Progress */}
+      {/* Clip Cards */}
       <AnimatePresence initial={false}>
-        {showSteps && (
+        {showClipCards && (
           <motion.div
-            key="render-progress"
-            className="border-2 border-border bg-surface-elevated"
-            initial={shouldReduceMotion ? false : { height: 0, opacity: 0, y: -4 }}
-            animate={{ height: "auto", opacity: 1, y: 0 }}
-            exit={shouldReduceMotion ? { opacity: 0 } : { height: 0, opacity: 0, y: -4 }}
+            className="space-y-2"
+            initial={shouldReduceMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
             transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut" }}
           >
-            <div className="p-3">
-              <StepProgress
-                steps={RENDER_STEPS}
-                completedSteps={workflowState.completedSteps}
-                isRunning={isRunning}
+            {(["portrait", "square", "landscape"] as const).map(ar => (
+              <ClipCard
+                key={ar}
+                aspectRatio={ar}
+                state={clipStates[ar]}
                 shouldReduceMotion={shouldReduceMotion}
               />
-            </div>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Error Message */}
-      {workflowState.status === "failed" && workflowState.error && (
-        <div className="border-2 border-[#dc2626] bg-[#fde8e8] p-2 text-xs text-[#dc2626]">
-          {workflowState.error}
+      {/* Success message */}
+      {allCompleted && (
+        <div className="border-2 border-[#22903d] bg-[#e9f5ec] p-2 text-xs text-[#22903d]">
+          ✓ All clips rendered. Click icons to download.
         </div>
       )}
 
-      {/* Success State */}
-      {workflowState.status === "completed" && workflowState.result && (
-        <>
-          <div className="border-2 border-[#22903d] bg-[#e9f5ec] p-2 text-xs text-[#22903d]">
-            ✓ Render complete. Ready to download.
-          </div>
-
-          <div className="flex gap-2">
-            <a
-              href={workflowState.result.url}
-              download={fileName}
-              className="btn-action flex-1 text-center"
-            >
-              DOWNLOAD (
-              {(workflowState.result.size / 1024 / 1024).toFixed(2)}
-              {" "}
-              MB)
-              <span className="arrow-icon ml-2">↓</span>
-            </a>
-            <button
-              type="button"
-              onClick={resetWorkflow}
-              className="btn-action bg-surface-elevated text-foreground hover:bg-surface"
-            >
-              [RESET]
-            </button>
-          </div>
-        </>
+      {/* Error message */}
+      {anyFailed && !anyRunning && (
+        <div className="border-2 border-[#dc2626] bg-[#fde8e8] p-2 text-xs text-[#dc2626]">
+          Some clips failed to render.
+        </div>
       )}
 
-      {/* Reset button for error state */}
-      {workflowState.status === "failed" && (
+      {/* Reset button */}
+      {(allCompleted || (anyFailed && !anyRunning)) && (
         <button
           type="button"
           onClick={resetWorkflow}
           className="btn-action w-full bg-surface-elevated text-foreground hover:bg-surface"
         >
-          [TRY AGAIN]
+          {anyFailed ? "[TRY AGAIN]" : "[RESET]"}
         </button>
       )}
 
       {/* Info text */}
       <p className="text-[10px] text-foreground-muted" style={{ fontFamily: "var(--font-space-mono)" }}>
-        Test render uses Remotion Lambda via durable workflow.
+        Renders 3 aspect ratios for social sharing.
       </p>
     </div>
   );

@@ -13,7 +13,7 @@
 
 export type WorkflowStatus = "queued" | "running" | "completed" | "failed";
 
-export type WorkflowType = "summarizeAndTag" | "translateCaptions" | "translateAudio" | "createClip" | "renderVideo";
+export type WorkflowType = "summarizeAndTag" | "translateCaptions" | "translateAudio" | "createClip" | "renderVideo" | "socialClip";
 
 export interface WorkflowProgress {
   workflowRunId: string;
