@@ -52,7 +52,7 @@ export default antfu({
     }],
     "unicorn/filename-case": ["error", {
       case: "kebabCase",
-      ignore: ["README.md", "^[A-Z]+\\.md$", "^DOCS/.*"],
+      ignore: ["README.md", "^[A-Z]+\\.md$", "^[A-Z][A-Z0-9-]+\\.md$"],
     }],
     // Cuddled else: } else { on same line
     "style/brace-style": ["error", "1tbs"],
