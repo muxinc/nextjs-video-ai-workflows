@@ -29,7 +29,7 @@ export const videos = pgTable("videos", {
   transcriptEnVtt: text("transcript_en_vtt"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => [
+}, table => [
   index("videos_mux_asset_id_idx").on(table.muxAssetId),
 ]);
 
@@ -47,7 +47,7 @@ export const videoChunks = pgTable("video_chunks", {
   embedding: vector("embedding", { dimensions: 1536 }), // OpenAI text-embedding-3-small
   visualDescription: text("visual_description"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
+}, table => [
   index("video_chunks_video_id_idx").on(table.videoId),
   index("video_chunks_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
 ]);

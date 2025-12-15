@@ -1,14 +1,14 @@
-import dotenv from "dotenv";
-
-// Load environment variables first
-dotenv.config({ path: ".env.local" });
-
+/* eslint-disable no-console, node/no-process-env */
 import Mux from "@mux/mux-node";
+import dotenv from "dotenv";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 import * as schema from "../db/schema";
+
+// Load environment variables first
+dotenv.config({ path: ".env.local" });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -67,7 +67,7 @@ async function importMuxAssets() {
 
   // Filter to only ready assets with playback IDs
   const readyAssets = allAssets.filter(
-    asset => asset.status === "ready" && asset.playback_ids && asset.playback_ids.length > 0
+    asset => asset.status === "ready" && asset.playback_ids && asset.playback_ids.length > 0,
   );
 
   console.log(`Ready assets with playback IDs: ${readyAssets.length}\n`);
@@ -80,13 +80,13 @@ async function importMuxAssets() {
 
     try {
       // Get the first public playback ID, or any playback ID
-      const playbackId = asset.playback_ids?.find(p => p.policy === "public")?.id
-        || asset.playback_ids?.[0]?.id;
+      const playbackId = asset.playback_ids?.find(p => p.policy === "public")?.id ||
+        asset.playback_ids?.[0]?.id;
 
       // Fetch transcript VTT if available
       let transcriptVtt: string | null = null;
       const transcriptTrack = asset.tracks?.find(
-        t => t.type === "text" && t.text_type === "subtitles" && t.status === "ready" && t.language_code === languageCode
+        t => t.type === "text" && t.text_type === "subtitles" && t.status === "ready" && t.language_code === languageCode,
       );
 
       if (transcriptTrack && playbackId) {
@@ -179,12 +179,11 @@ async function importMuxAssets() {
               chunk.metadata.startTime ?? null,
               chunk.metadata.endTime ?? null,
               embeddingStr,
-            ]
+            ],
           );
         }
         console.log(`✓ Saved ${result.chunks.length} chunks with embeddings`);
       }
-
     } catch (error) {
       console.error(`✗ Error processing asset ${asset.id}:`, error);
     }

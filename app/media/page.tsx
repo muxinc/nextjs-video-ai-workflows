@@ -233,9 +233,8 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
   const params = await searchParams;
   const currentPage = Math.max(1, Number.parseInt(params.page || "1", 10) || 1);
 
-  // Calculate range for server-side pagination
+  // Calculate offset for server-side pagination
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE - 1;
 
   // Fetch paginated videos from database with total count
   const [paginatedVideos, [{ count }]] = await Promise.all([
