@@ -1,89 +1,209 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { useRendering } from "@/app/lib/remotion/use-rendering";
+import {
+  clearWorkflowProgress,
+  getWorkflowProgress,
+  markWorkflowCompleted,
+  markWorkflowFailed,
+  markWorkflowRunning,
+  startWorkflow as persistWorkflowStart,
+} from "@/app/lib/workflow-state";
+import { mergeSteps } from "@/app/media/[slug]/workflows-panel/helpers";
 import { DEFAULT_COMPOSITION_ID } from "@/remotion/default-composition/constants";
 
 import type { WorkflowStatus } from "../../types";
 import { StatusBadge, StepProgress } from "../workflows-panel/ui";
 
+import type { RenderStepId, RenderVideoResult } from "./actions";
+import { pollRenderWorkflowAction, startRenderWorkflowAction } from "./actions";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-type RenderStepId = "invoking" | "rendering" | "finalizing";
+const POLL_INTERVAL = 1500;
 
 const RENDER_STEPS: readonly { id: RenderStepId; label: string }[] = [
-  { id: "invoking", label: "Starting render" },
-  { id: "rendering", label: "Rendering video" },
-  { id: "finalizing", label: "Finalizing output" },
+  { id: "prepare", label: "Preparing render" },
+  { id: "render", label: "Rendering video" },
+  { id: "finalize", label: "Finalizing output" },
 ] as const;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ─────────────────────────────────────────────────────────────────────────────
-
-function mapRenderStateToWorkflowStatus(status: string): WorkflowStatus {
-  switch (status) {
-    case "init":
-      return "idle";
-    case "invoking":
-      return "starting";
-    case "rendering":
-      return "running";
-    case "done":
-      return "completed";
-    case "error":
-      return "failed";
-    default:
-      return "idle";
-  }
-}
-
-function getCompletedSteps(status: string, progress: number): RenderStepId[] {
-  switch (status) {
-    case "invoking":
-      return [];
-    case "rendering":
-      // Mark "invoking" as complete, and if progress is high enough, mark "rendering" too
-      if (progress >= 0.95) {
-        return ["invoking", "rendering"];
-      }
-      return ["invoking"];
-    case "done":
-      return ["invoking", "rendering", "finalizing"];
-    default:
-      return [];
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test Render Component
 // ─────────────────────────────────────────────────────────────────────────────
 
+const DEFAULT_INPUT_PROPS = { title: "Hello friend" };
+
 export function Layer3SocialClips({ assetId }: { assetId: string }) {
-  const inputProps = { title: "Hello friend" };
   const fileName = `test-render-${assetId}.mp4`;
   const shouldReduceMotion = useReducedMotion();
 
-  const { renderMedia, state, undo } = useRendering(
-    DEFAULT_COMPOSITION_ID,
-    inputProps,
-    fileName,
-  );
+  const [workflowState, setWorkflowState] = useState<{
+    status: WorkflowStatus;
+    completedSteps: RenderStepId[];
+    runId?: string;
+    error?: string;
+    result?: RenderVideoResult;
+    renderProgress?: number;
+  }>(() => {
+    if (typeof window === "undefined") {
+      return { status: "idle", completedSteps: [] };
+    }
+    const stored = getWorkflowProgress(assetId, "renderVideo");
+    if (stored && (stored.status === "queued" || stored.status === "running")) {
+      // Check for stale localStorage entries (> 30 min old)
+      const startedAtMs = Date.parse(stored.startedAt);
+      const ageMs = Number.isFinite(startedAtMs) ? Date.now() - startedAtMs : Number.POSITIVE_INFINITY;
+      const staleAfterMs = 30 * 60 * 1000;
+      if (ageMs > staleAfterMs) {
+        return { status: "idle", completedSteps: [] };
+      }
+      return { status: "starting", completedSteps: [], runId: stored.workflowRunId };
+    }
+    return { status: "idle", completedSteps: [] };
+  });
 
-  const workflowStatus = mapRenderStateToWorkflowStatus(state.status);
-  const isRunning = state.status === "invoking" || state.status === "rendering";
-  const isWorking = isRunning;
+  const [isPending, startTransition] = useTransition();
 
-  const completedSteps = useMemo(() => {
-    const progress = state.status === "rendering" ? state.progress : 0;
-    return getCompletedSteps(state.status, progress);
-  }, [state]);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamIndexRef = useRef(0);
+  const isPollInFlightRef = useRef(false);
 
-  const showSteps = isRunning || completedSteps.length > 0;
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const pollStatus = useCallback(async (runId: string) => {
+    if (isPollInFlightRef.current) {
+      return;
+    }
+    isPollInFlightRef.current = true;
+
+    try {
+      const result = await pollRenderWorkflowAction(runId, streamIndexRef.current);
+      streamIndexRef.current = result.nextIndex;
+
+      if (result.status === "completed" || result.status === "failed") {
+        stopPolling();
+        if (result.status === "completed") {
+          markWorkflowCompleted(assetId, "renderVideo", undefined);
+        } else {
+          markWorkflowFailed(assetId, "renderVideo", undefined, result.error || "Workflow failed.");
+          clearWorkflowProgress(assetId, "renderVideo", undefined);
+        }
+        setWorkflowState(prev => ({
+          ...prev,
+          status: result.status,
+          completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
+          runId,
+          error: result.error,
+          result: result.result,
+        }));
+        return;
+      }
+
+      if (result.status === "running") {
+        markWorkflowRunning(assetId, "renderVideo");
+      }
+      setWorkflowState(prev => ({
+        ...prev,
+        status: result.status,
+        completedSteps: mergeSteps(prev.completedSteps, result.completedSteps),
+        renderProgress: result.renderProgress ?? prev.renderProgress,
+      }));
+    } finally {
+      isPollInFlightRef.current = false;
+    }
+  }, [assetId, stopPolling]);
+
+  const startWorkflow = useCallback(() => {
+    stopPolling();
+    streamIndexRef.current = 0;
+    setWorkflowState({ status: "starting", completedSteps: [] });
+
+    startTransition(async () => {
+      const result = await startRenderWorkflowAction({
+        assetId,
+        compositionId: DEFAULT_COMPOSITION_ID,
+        inputProps: DEFAULT_INPUT_PROPS,
+        fileName,
+      });
+
+      if (result.status === "failed" || !result.runId) {
+        setWorkflowState({
+          status: "failed",
+          completedSteps: [],
+          error: result.error,
+        });
+        return;
+      }
+
+      persistWorkflowStart(assetId, "renderVideo", undefined, result.runId);
+      setWorkflowState({ status: "starting", completedSteps: [], runId: result.runId });
+
+      pollRef.current = setInterval(() => {
+        void pollStatus(result.runId);
+      }, POLL_INTERVAL);
+
+      void pollStatus(result.runId);
+    });
+  }, [assetId, fileName, pollStatus, stopPolling]);
+
+  const resetWorkflow = useCallback(() => {
+    clearWorkflowProgress(assetId, "renderVideo", undefined);
+    setWorkflowState({ status: "idle", completedSteps: [] });
+  }, [assetId]);
+
+  // Cleanup polling on unmount
+  useEffect(() => stopPolling, [stopPolling]);
+
+  // Resume polling if we rehydrated an in-flight workflow from localStorage
+  useEffect(() => {
+    if (!workflowState.runId) {
+      return;
+    }
+
+    if (pollRef.current) {
+      return;
+    }
+
+    if (workflowState.status === "starting" || workflowState.status === "running") {
+      pollRef.current = setInterval(() => {
+        void pollStatus(workflowState.runId!);
+      }, POLL_INTERVAL);
+      void pollStatus(workflowState.runId);
+      return () => {
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      };
+    }
+  }, [pollStatus, workflowState.runId, workflowState.status]);
+
+  const isRunning = workflowState.status === "running" || workflowState.status === "starting";
+  const isWorking = isPending || isRunning;
+  const showSteps = isRunning || workflowState.completedSteps.length > 0;
+
+  const buttonText = useMemo(() => {
+    if (!isWorking) {
+      return "[TEST RENDER]";
+    }
+    if (workflowState.status === "starting") {
+      return "QUEUING...";
+    }
+    if (workflowState.renderProgress !== undefined) {
+      return `RENDERING ${Math.round(workflowState.renderProgress * 100)}%`;
+    }
+    return "PROCESSING...";
+  }, [isWorking, workflowState.status, workflowState.renderProgress]);
 
   return (
     <div className="space-y-4">
@@ -95,32 +215,24 @@ export function Layer3SocialClips({ assetId }: { assetId: string }) {
         >
           Video Render
         </span>
-        <StatusBadge status={workflowStatus} />
+        <StatusBadge status={workflowState.status} />
       </div>
 
       {/* Action Button */}
-      {state.status !== "done" && (
+      {workflowState.status !== "completed" && (
         <button
           type="button"
           className="btn-action w-full"
-          onClick={renderMedia}
+          onClick={startWorkflow}
           disabled={isWorking}
         >
-          {isWorking ?
-              (
-                <>
-                  <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  {state.status === "invoking" ?
-                    "QUEUING..." :
-                    `RENDERING ${Math.round((state.status === "rendering" ? state.progress : 0) * 100)}%`}
-                </>
-              ) :
-              (
-                <>
-                  [TEST RENDER]
-                  <span className="arrow-icon ml-2">↗</span>
-                </>
-              )}
+          {isWorking && (
+            <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          )}
+          {buttonText}
+          {!isWorking && (
+            <span className="arrow-icon ml-2">↗</span>
+          )}
         </button>
       )}
 
@@ -138,7 +250,7 @@ export function Layer3SocialClips({ assetId }: { assetId: string }) {
             <div className="p-3">
               <StepProgress
                 steps={RENDER_STEPS}
-                completedSteps={completedSteps}
+                completedSteps={workflowState.completedSteps}
                 isRunning={isRunning}
                 shouldReduceMotion={shouldReduceMotion}
               />
@@ -148,14 +260,14 @@ export function Layer3SocialClips({ assetId }: { assetId: string }) {
       </AnimatePresence>
 
       {/* Error Message */}
-      {state.status === "error" && (
+      {workflowState.status === "failed" && workflowState.error && (
         <div className="border-2 border-[#dc2626] bg-[#fde8e8] p-2 text-xs text-[#dc2626]">
-          {state.error.message}
+          {workflowState.error}
         </div>
       )}
 
       {/* Success State */}
-      {state.status === "done" && (
+      {workflowState.status === "completed" && workflowState.result && (
         <>
           <div className="border-2 border-[#22903d] bg-[#e9f5ec] p-2 text-xs text-[#22903d]">
             ✓ Render complete. Ready to download.
@@ -163,19 +275,19 @@ export function Layer3SocialClips({ assetId }: { assetId: string }) {
 
           <div className="flex gap-2">
             <a
-              href={state.url}
+              href={workflowState.result.url}
               download={fileName}
               className="btn-action flex-1 text-center"
             >
               DOWNLOAD (
-              {(state.size / 1024 / 1024).toFixed(2)}
+              {(workflowState.result.size / 1024 / 1024).toFixed(2)}
               {" "}
               MB)
               <span className="arrow-icon ml-2">↓</span>
             </a>
             <button
               type="button"
-              onClick={undo}
+              onClick={resetWorkflow}
               className="btn-action bg-surface-elevated text-foreground hover:bg-surface"
             >
               [RESET]
@@ -185,10 +297,10 @@ export function Layer3SocialClips({ assetId }: { assetId: string }) {
       )}
 
       {/* Reset button for error state */}
-      {state.status === "error" && (
+      {workflowState.status === "failed" && (
         <button
           type="button"
-          onClick={undo}
+          onClick={resetWorkflow}
           className="btn-action w-full bg-surface-elevated text-foreground hover:bg-surface"
         >
           [TRY AGAIN]
@@ -197,7 +309,7 @@ export function Layer3SocialClips({ assetId }: { assetId: string }) {
 
       {/* Info text */}
       <p className="text-[10px] text-foreground-muted" style={{ fontFamily: "var(--font-space-mono)" }}>
-        Test render uses Remotion Lambda to generate video.
+        Test render uses Remotion Lambda via durable workflow.
       </p>
     </div>
   );
