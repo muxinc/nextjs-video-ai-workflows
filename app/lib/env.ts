@@ -31,8 +31,8 @@ const EnvSchema = z.object({
   ANTHROPIC_API_KEY: optionalString("Anthropic API key for Claude-backed workflows."),
   GOOGLE_GENERATIVE_AI_API_KEY: optionalString("Google Generative AI API key for Gemini-backed workflows."),
 
-  // ElevenLabs API key (required for translateAudio workflow)
-  ELEVENLABS_API_KEY: requiredString("ElevenLabs API key for translateAudio workflow.", "Required to use ElevenLabs for audio translation."),
+  // ElevenLabs API key (optional; required only if you want to use translateAudio)
+  ELEVENLABS_API_KEY: optionalString("ElevenLabs API key for translateAudio workflow."),
 
   // S3-Compatible Storage (required for translation workflows)
   S3_ENDPOINT: requiredString("S3 endpoint for translation workflows.", "Required to store translated artifacts."),
@@ -44,9 +44,9 @@ const EnvSchema = z.object({
   // Database (PostgreSQL with pgvector)
   DATABASE_URL: requiredString("PostgreSQL connection string (pgvector). Required to store/search the Mux catalog metadata.", "Required to connect to the database."),
 
-  // Remotion Lambda (required for rendering videos)
-  REMOTION_AWS_ACCESS_KEY_ID: requiredString("Remotion AWS access key ID.", "Required to render videos."),
-  REMOTION_AWS_SECRET_ACCESS_KEY: requiredString("Remotion AWS secret access key.", "Required to render videos."),
+  // Remotion Lambda (optional; required only if you want to render social clips)
+  REMOTION_AWS_ACCESS_KEY_ID: optionalString("Remotion AWS access key ID for rendering social clips."),
+  REMOTION_AWS_SECRET_ACCESS_KEY: optionalString("Remotion AWS secret access key for rendering social clips."),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

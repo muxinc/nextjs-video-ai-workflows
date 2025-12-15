@@ -34,7 +34,7 @@ export type CaptionStepId = typeof CAPTION_STEPS[number]["id"];
 // Step definitions for audio translation progress tracking
 export const AUDIO_STEPS = [
   { id: "prepare", label: "Preparing audio" },
-  { id: "generate", label: "Generating dubbed audio" },
+  { id: "generate", label: "Generating dubbed audio (with ElevenLabs)" },
   { id: "upload", label: "Uploading to Mux" },
 ] as const;
 

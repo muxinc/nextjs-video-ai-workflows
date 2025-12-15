@@ -2,6 +2,7 @@
 
 import { getRun, start } from "workflow/api";
 
+import { env } from "@/app/lib/env";
 import { findAudioTrack, findTextTrack, getAsset } from "@/app/lib/mux";
 import { translateAudioWorkflow } from "@/workflows/translate-audio";
 import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
@@ -123,6 +124,9 @@ export async function startAudioTranslationAction(
   assetId: string,
   targetLang: string,
 ): Promise<WorkflowStartResult> {
+  if (!env.ELEVENLABS_API_KEY) {
+    return { runId: "", status: "failed", error: "ElevenLabs env key required" };
+  }
   return await startWorkflowAction(translateAudioWorkflow, [assetId, targetLang]);
 }
 

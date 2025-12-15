@@ -20,24 +20,7 @@ import { CompletedStepIcon, CurrentStepIcon, PendingStepIcon, StatusBadge } from
 
 import type { RenderStepId, RenderVideoResult, SocialClipInput } from "./actions";
 import { pollSocialClipsRenderAction, startSocialClipsRenderAction } from "./actions";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
-
-const POLL_INTERVAL = 1500;
-
-const RENDER_STEPS: readonly { id: RenderStepId; label: string }[] = [
-  { id: "prepare", label: "Preparing" },
-  { id: "render", label: "Rendering" },
-  { id: "finalize", label: "Finalizing" },
-] as const;
-
-const ASPECT_RATIO_LABELS: Record<AspectRatio, string> = {
-  portrait: "9:16",
-  square: "1:1",
-  landscape: "16:9",
-};
+import { ASPECT_RATIO_LABELS, POLL_INTERVAL, RENDER_STEPS } from "./constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -59,6 +42,7 @@ interface Layer3SocialClipsProps {
   playbackPolicy: "public" | "signed";
   transcriptCues: TranscriptCue[];
   title: string;
+  hasRemotionLambdaKeys: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -250,7 +234,25 @@ function ClipCard({
 // Social Clips Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function Layer3SocialClips({ assetId, playbackId, playbackPolicy, transcriptCues, title }: Layer3SocialClipsProps) {
+function RequirementBadge({ children }: { children: string }) {
+  return (
+    <span
+      className="inline-flex items-center border-2 border-border bg-surface-elevated px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-foreground-muted"
+      style={{ fontFamily: "var(--font-space-mono)" }}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function Layer3SocialClips({
+  assetId,
+  playbackId,
+  playbackPolicy,
+  transcriptCues,
+  title,
+  hasRemotionLambdaKeys,
+}: Layer3SocialClipsProps) {
   const shouldReduceMotion = useReducedMotion();
 
   // Initialize clip states
@@ -497,7 +499,12 @@ export function Layer3SocialClips({ assetId, playbackId, playbackPolicy, transcr
         >
           Social Clips
         </span>
-        <StatusBadge status={aggregateStatus} />
+        <div className="flex items-center gap-2">
+          {!hasRemotionLambdaKeys && (
+            <RequirementBadge>Remotion Lambda env keys required</RequirementBadge>
+          )}
+          <StatusBadge status={aggregateStatus} />
+        </div>
       </div>
 
       {/* Clip timing info */}
@@ -520,7 +527,7 @@ export function Layer3SocialClips({ assetId, playbackId, playbackPolicy, transcr
           type="button"
           className="btn-action w-full"
           onClick={startRender}
-          disabled={isWorking}
+          disabled={isWorking || !hasRemotionLambdaKeys}
         >
           {isWorking && (
             <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />

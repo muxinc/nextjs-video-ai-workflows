@@ -18,20 +18,7 @@ import { StatusBadge, StepProgress } from "../workflows-panel/ui";
 
 import type { SummaryStatus, SummaryTone } from "./actions";
 import { pollSummaryWorkflowAction, saveSummaryAndTagsAction, startSummaryWorkflowAction } from "./actions";
-
-const TONE_OPTIONS: { value: SummaryTone; label: string }[] = [
-  { value: "normal", label: "NORMAL" },
-  { value: "professional", label: "PROFESSIONAL" },
-  { value: "sassy", label: "PLAYFUL" },
-];
-
-const POLL_INTERVAL = 1500;
-
-const SUMMARY_STEPS: readonly { id: SummaryStepId; label: string }[] = [
-  { id: "prepare", label: "Preparing inputs" },
-  { id: "generate", label: "Generating summary + tags" },
-  { id: "finalize", label: "Finalizing output" },
-] as const;
+import { POLL_INTERVAL, SUMMARY_STEPS, TONE_OPTIONS } from "./constants";
 
 function TagChip({ tag }: { tag: string }) {
   return (
@@ -80,7 +67,7 @@ function ToneSelector({
 }
 
 function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
-  const [selectedTone, setSelectedTone] = useState<SummaryTone>("normal");
+  const [selectedTone, setSelectedTone] = useState<SummaryTone>("neutral");
   const [isMetadataCollapsed, setIsMetadataCollapsed] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 

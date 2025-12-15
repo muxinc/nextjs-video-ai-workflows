@@ -43,6 +43,7 @@ import type {
 
 interface Layer2LocalizationProps {
   assetId: string;
+  hasElevenLabsKey: boolean;
 }
 
 interface WorkflowState<TStep extends string> {
@@ -365,6 +366,7 @@ function WorkflowSection<TStep extends string>({
   completedMessage,
   disabled,
   error,
+  headerBadge,
   isPending,
   isRunning,
   status,
@@ -384,6 +386,7 @@ function WorkflowSection<TStep extends string>({
   buttonLabel: string;
   completedMessage: React.ReactNode;
   error?: string;
+  headerBadge?: React.ReactNode;
   onStart: () => void;
   shouldReduceMotion: boolean | null;
 }) {
@@ -396,7 +399,10 @@ function WorkflowSection<TStep extends string>({
         >
           {title}
         </span>
-        <StatusBadge status={status} />
+        <div className="flex items-center gap-2">
+          {headerBadge}
+          <StatusBadge status={status} />
+        </div>
       </div>
 
       <TranslationButton
@@ -444,7 +450,18 @@ function WorkflowSection<TStep extends string>({
   );
 }
 
-export function Layer2Localization({ assetId }: Layer2LocalizationProps) {
+function RequirementBadge({ children }: { children: string }) {
+  return (
+    <span
+      className="inline-flex items-center border-2 border-border bg-surface-elevated px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-foreground-muted"
+      style={{ fontFamily: "var(--font-space-mono)" }}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function Layer2Localization({ assetId, hasElevenLabsKey }: Layer2LocalizationProps) {
   const { refreshPlayer } = usePlayer();
   // Use lazy initializer to compute initial language synchronously during first render.
   // This ensures workflow hooks get the correct targetLang for resumability.
@@ -528,13 +545,14 @@ export function Layer2Localization({ assetId }: Layer2LocalizationProps) {
         status={audio.state.status}
         isRunning={audio.isRunning}
         isPending={audio.isPending}
-        disabled={isAnyWorkflowRunning}
+        disabled={isAnyWorkflowRunning || !hasElevenLabsKey}
         steps={AUDIO_STEPS}
         completedSteps={audio.state.completedSteps}
         buttonLabel={`TRANSLATE AUDIO → ${selectedLang.name.toUpperCase()}`}
         error={audio.state.error}
         onStart={audio.startWorkflow}
         completedMessage={audioCompletedMessage}
+        headerBadge={!hasElevenLabsKey ? <RequirementBadge>ElevenLabs env key required</RequirementBadge> : undefined}
         shouldReduceMotion={shouldReduceMotion}
       />
 
