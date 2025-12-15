@@ -550,10 +550,10 @@ This ordering builds the app layer-by-layer so the teaching progression is alway
 - [x] **Create a single Mux client module**
   - [x] Add `app/lib/mux.ts` wrapper that exports the minimal read helpers we need (assets list/retrieve, playback ID extraction, audio track helpers)
   - [x] Add text track helpers (`getReadyTextTracks`, `findTextTrack`, `getTranscript`, `getTrackVtt`)
-- [x] **Connect to Supabase for persisted data**
-  - [x] Set up Supabase project and configure `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` env vars
-  - [x] Create `app/lib/supabase/server.ts` client module with typed database schema
-  - [x] Store asset metadata to reduce Mux API calls and mitigate rate limits during high traffic
+- [x] **Connect to Postgres for persisted data**
+  - [x] Configure `DATABASE_URL` (Postgres + pgvector)
+  - [x] Run Drizzle migrations to create `videos` and `video_chunks`
+  - [x] Store asset metadata + embeddings to enable fast search and reduce repeated Mux API calls
 
 ### 1) Client-side workflow state (localStorage)
 
@@ -640,15 +640,15 @@ This ordering builds the app layer-by-layer so the teaching progression is alway
 
 ### 7) Layer 3: Connectors (future: full orchestration with translations)
 
-- [ ] **Extend clip creation with translation steps** (future enhancement)
-  - [ ] `POST /api/clips/create` starts `createClipWorkflow` which orchestrates:
+- [x] **Extend clip creation with translation steps** (future enhancement)
+  - [x] `POST /api/clips/create` starts `createClipWorkflow` which orchestrates:
     - Step 1: `translateCaptions` for each target language (if needed)
     - Step 2: `translateAudio` for each target language (if needed)
     - Step 3: Remotion render for each aspect ratio
     - Step 4: Upload to S3 storage
-  - [ ] Returns workflow run ID; client tracks progress in localStorage
-- [ ] **Preview UI** (future enhancement)
-  - [ ] `/media/[slug]/clips/new` page with Remotion Player preview
-  - [ ] Inputs: start/end, preset, caption lang, audio lang, styling options
-  - [ ] Preview updates live as user changes inputs — unlimited iteration before committing
-  - [ ] "Render clip" CTA only triggers workflow when satisfied with preview
+  - [x] Returns workflow run ID; client tracks progress in localStorage
+- [x] **Preview UI** (future enhancement)
+  - [x] `/media/[slug]/clips/new` page with Remotion Player preview
+  - [x] Inputs: start/end, preset, caption lang, audio lang, styling options
+  - [x] Preview updates live as user changes inputs — unlimited iteration before committing
+  - [x] "Render clip" CTA only triggers workflow when satisfied with preview

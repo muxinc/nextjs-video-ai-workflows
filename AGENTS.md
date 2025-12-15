@@ -83,10 +83,6 @@ MUX_TOKEN_SECRET=
 # OpenAI (required for embeddings)
 OPENAI_API_KEY=
 
-# Supabase (for persisted asset metadata and search)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-
 # ElevenLabs (for translateAudio)
 ELEVENLABS_API_KEY=
 
@@ -315,17 +311,17 @@ From `context/design-explained.md`:
 
 ---
 
-## Data model (Supabase + Mux)
+## Data model (Postgres + Mux)
 
-This app uses **Supabase** as a persisted storage layer for asset metadata, while Mux remains the source of truth for video assets and tracks. This offloads overhead from Mux's API and mitigates potential rate limits during high traffic scenarios.
+This app uses **Postgres (via Drizzle + pgvector)** as a persisted storage layer for catalog metadata and vector embeddings, while Mux remains the source of truth for video assets and tracks.
 
 ### 1. Mux assets (source of truth)
 
 Translated caption and audio tracks are attached directly to Mux assets using the `uploadToMux: true` option. The asset's `tracks` array reflects all available language variants.
 
-### 2. Supabase (metadata storage)
+### 2. Postgres (metadata + embeddings)
 
-Asset metadata is persisted in Supabase to reduce direct Mux API calls. This improves response times and prevents rate limiting when traffic spikes. The data can be invalidated via TTL or Mux webhooks.
+Asset metadata is persisted in Postgres (table: `videos`), and transcript chunks with embeddings are stored in `video_chunks` for semantic search.
 
 ### 3. Browser localStorage (workflow progress)
 
@@ -345,7 +341,7 @@ interface WorkflowProgress {
 This means:
 
 - Mux is the single source of truth for all media and track state
-- Supabase stores asset metadata to reduce API overhead and avoid rate limits
+  - Postgres stores asset metadata + embeddings for fast search and discovery
 - Workflow progress survives page refreshes but is browser-local
 - Multiple browser tabs/devices won't share workflow state (acceptable for a demo)
 

@@ -74,23 +74,59 @@ MUX_TOKEN_SECRET=
 # OpenAI (required for embeddings)
 OPENAI_API_KEY=
 
-# Supabase (asset metadata + search)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# Database (PostgreSQL with pgvector) — required to store/search the Mux catalog metadata
+DATABASE_URL=
 ```
 
-### Supabase Types
+### Database setup + importing your Mux catalog
 
-Generate TypeScript types from your Supabase schema:
+This project stores your Mux catalog metadata in Postgres and generates **pgvector embeddings** for semantic search.
+
+#### 1) Configure your database connection
+
+Create a `.env.local` file (this is what both Drizzle and the import script load):
 
 ```bash
-npx supabase login
+# Database (PostgreSQL + pgvector)
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DB_NAME"
 
-npx supabase gen types typescript \
-  --project-id YOUR_PROJECT_ID \
-  --schema public \
-  > app/lib/supabase/types.ts
+# Mux (used by the import script)
+MUX_TOKEN_ID="..."
+MUX_TOKEN_SECRET="..."
+
+# Embeddings (used by the import script)
+OPENAI_API_KEY="..."
 ```
+
+> Your Postgres must support `pgvector`. The first migration will run `CREATE EXTENSION IF NOT EXISTS vector;`.
+
+#### 2) Run database migrations
+
+Apply the migrations in `db/migrations/` (creates tables + indexes and enables pgvector):
+
+```bash
+npm run db:migrate
+```
+
+#### 3) Import Mux assets (and generate embeddings)
+
+This fetches all **ready** Mux assets with playback IDs, upserts rows into `videos`, and writes embedding rows into `video_chunks`.
+
+```bash
+npm run import-mux-assets
+```
+
+To embed subtitles in a specific language, pass `--language` (defaults to `en`):
+
+```bash
+npm run import-mux-assets -- --language en
+```
+
+#### 4) Understand the database scripts
+
+- **`npm run db:generate`**: Generates new migration files from `db/schema.ts` (use this after changing the schema).
+- **`npm run db:migrate`**: Applies migrations to the database defined by `DATABASE_URL`.
+- **`npm run db:studio`**: Opens Drizzle Studio to inspect tables/rows locally (also uses `DATABASE_URL`).
 
 ## Media Detail Page Structure
 
@@ -130,6 +166,4 @@ app/media/[slug]/
 
 ## See Also
 
-- [`muxinc/supasearch`](https://github.com/muxinc/supasearch) — semantic search for your Mux video catalog with Supabase vector embeddings
-
-- [Supabase Semantic Search](https://supabase.com/docs/guides/ai/semantic-search) — guide to implementing vector search with pgvector
+- [`pgvector`](https://github.com/pgvector/pgvector) — vector embeddings and similarity search for Postgres

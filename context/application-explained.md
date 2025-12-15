@@ -4,7 +4,7 @@
 
 This app demonstrates how to combine **`@mux/ai`** with **Vercel Workflows** to ship video intelligence that holds up at scale.
 
-Using a **staging Mux account** populated with demo content (e.g. **Demuxed talks**), we show a clear progression of integration patterns—from calling primitives directly to composing multi-step pipelines with external tools—so developers can see exactly how to architect their own video-AI features.
+Using content hosted in your **Mux account**, we show a clear progression of integration patterns—from calling primitives directly to composing multi-step pipelines with external tools—so developers can see exactly how to architect their own video-AI features.
 
 The core idea: **understand the building blocks, then compose them into reliable, observable pipelines**.
 
@@ -282,24 +282,24 @@ This framing communicates the key insight: `@mux/ai` isn't just AI responses—i
 
 ---
 
-## Persistence approach (Supabase + Mux)
+## Persistence approach (Postgres + Mux)
 
-While Mux remains the source of truth for video assets and tracks, this demo uses **Supabase** as a persisted layer for asset metadata. This approach offloads overhead from Mux's API while mitigating potential rate limits during high traffic scenarios.
+While Mux remains the source of truth for video assets and tracks, this demo uses **Postgres (with pgvector)** as a persisted layer for asset metadata and embeddings.
 
 ### What gets persisted where
 
-| Data                          | Where                | Why                                                                      |
-| ----------------------------- | -------------------- | ------------------------------------------------------------------------ |
-| **Asset metadata**            | Supabase             | Reduces Mux API calls; mitigates rate limits during high traffic         |
-| **Translated caption tracks** | Mux asset            | `translateCaptions` with `uploadToMux: true` attaches the track directly |
-| **Dubbed audio tracks**       | Mux asset            | `translateAudio` with `uploadToMux: true` attaches the track directly    |
-| **Rendered clips**            | S3 storage           | Layer 3 workflow uploads MP4 + poster to configured S3 bucket            |
-| **Workflow progress**         | Browser localStorage | Client tracks in-flight workflows for UI status display                  |
+| Data                            | Where                | Why                                                                             |
+| ------------------------------- | -------------------- | ------------------------------------------------------------------------------- |
+| **Asset metadata + embeddings** | Postgres             | Enables fast list/detail views + semantic search without re-fetching everything |
+| **Translated caption tracks**   | Mux asset            | `translateCaptions` with `uploadToMux: true` attaches the track directly        |
+| **Dubbed audio tracks**         | Mux asset            | `translateAudio` with `uploadToMux: true` attaches the track directly           |
+| **Rendered clips**              | S3 storage           | Layer 3 workflow uploads MP4 + poster to configured S3 bucket                   |
+| **Workflow progress**           | Browser localStorage | Client tracks in-flight workflows for UI status display                         |
 
 ### Why this works
 
 - **Mux is the source of truth**: The asset's `tracks` array already contains all the information needed to populate caption/audio selectors in the player.
-- **Supabase offloads Mux API**: Asset metadata is persisted in Supabase to reduce direct Mux API calls, improving response times and avoiding rate limits when traffic spikes.
+- **Postgres offloads Mux API**: Asset metadata can be persisted to reduce repeated Mux API calls and improve response times.
 - **No sync issues**: Since tracks are attached to the asset, there's no risk of our database getting out of sync with Mux.
 - **localStorage is sufficient for progress**: Workflow status only needs to survive page refreshes within a single browser session. Cross-device sync isn't needed for a demo.
 
@@ -307,7 +307,7 @@ While Mux remains the source of truth for video assets and tracks, this demo use
 
 - Workflow progress is browser-local (won't sync across devices/tabs)
 - No server-side audit log of workflow runs
-- Supabase data may become stale; implement TTL or webhook-based invalidation for production
+- Cached metadata may become stale; implement TTL or webhook-based invalidation for production
 
 ---
 
