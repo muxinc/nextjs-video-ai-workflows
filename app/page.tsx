@@ -106,7 +106,7 @@ export default function Home() {
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Link href="/media" className="btn-action group inline-flex items-center justify-center">
-                    Browse talks
+                    Browse videos
                     <span className="arrow-icon ml-2">↗</span>
                   </Link>
 
@@ -132,7 +132,7 @@ export default function Home() {
                     <ul className="space-y-3 text-sm text-foreground-muted">
                       <li className="flex items-start gap-3">
                         <span className="mt-1 inline-block h-2.5 w-2.5 shrink-0 border border-border bg-accent" />
-                        Start with a real talk from the Demuxed video library.
+                        Start with a real video from your Mux account.
                       </li>
                       <li className="flex items-start gap-3">
                         <span className="mt-1 inline-block h-2.5 w-2.5 shrink-0 border border-border bg-[#ffb202]" />
