@@ -1,9 +1,8 @@
 import dotenv from "dotenv";
 
-// Load environment variables
+// Load environment variables first
 dotenv.config({ path: ".env.local" });
 
-import { generateVideoEmbeddings } from "@mux/ai/workflows";
 import Mux from "@mux/mux-node";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -48,6 +47,8 @@ const mux = new Mux({
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function importMuxAssets() {
+  // Dynamic import for ESM-only package
+  const { generateVideoEmbeddings } = await import("@mux/ai/workflows");
   console.log("Fetching Mux assets...");
 
   // Fetch all assets from Mux (paginated)
@@ -115,32 +116,51 @@ async function importMuxAssets() {
         provider: "openai",
         languageCode,
         chunkingStrategy: {
-          type: "token",
+          type: "vtt",
           maxTokens: 500,
-          overlap: 100,
+          overlapCues: 2,
         },
       });
 
       console.log(`✓ Generated ${result.chunks.length} chunks`);
+
+      // Log chunk info
+      if (result.chunks.length > 0) {
+        const firstChunk = result.chunks[0] as { metadata: { startTime?: number; endTime?: number } };
+        console.log(`  Chunks: ${result.chunks.length}, Time range: ${firstChunk.metadata.startTime ?? 0}s - ${firstChunk.metadata.endTime ?? "?"}s`);
+      }
 
       // Delete existing chunks for this video (in case of re-import)
       await db
         .delete(schema.videoChunks)
         .where(eq(schema.videoChunks.videoId, video.id));
 
-      // Insert all chunks
+      // Insert all chunks with embeddings and metadata
       if (result.chunks.length > 0) {
-        await db.insert(schema.videoChunks).values(
-          result.chunks.map((chunk, index) => ({
-            videoId: video.id,
-            chunkIndex: index,
-            chunkText: chunk.text,
-            startTime: chunk.metadata.startTime,
-            endTime: chunk.metadata.endTime,
-            embedding: chunk.embedding,
-            visualDescription: chunk.metadata.visualDescription || null,
-          }))
-        );
+        for (let i = 0; i < result.chunks.length; i++) {
+          const chunk = result.chunks[i] as {
+            chunkId: string;
+            embedding: number[];
+            metadata: { startTime?: number; endTime?: number; tokenCount: number };
+          };
+
+          // Convert embedding array to pgvector format: '[0.1,0.2,...]'
+          const embeddingStr = `[${chunk.embedding.join(",")}]`;
+
+          // Use raw SQL with raw embedding string for proper pgvector format
+          await pool.query(
+            `INSERT INTO video_chunks (video_id, chunk_index, chunk_text, start_time, end_time, embedding)
+             VALUES ($1, $2, $3, $4, $5, $6::vector)`,
+            [
+              video.id,
+              i,
+              null,
+              chunk.metadata.startTime ?? null,
+              chunk.metadata.endTime ?? null,
+              embeddingStr,
+            ]
+          );
+        }
         console.log(`✓ Saved ${result.chunks.length} chunks with embeddings`);
       }
 

@@ -41,9 +41,9 @@ export const videoChunks = pgTable("video_chunks", {
   id: uuid("id").primaryKey().defaultRandom(),
   videoId: uuid("video_id").notNull().references(() => videos.id, { onDelete: "cascade" }),
   chunkIndex: integer("chunk_index").notNull(),
-  chunkText: text("chunk_text").notNull(),
-  startTime: real("start_time").notNull(),
-  endTime: real("end_time").notNull(),
+  chunkText: text("chunk_text"),
+  startTime: real("start_time"),
+  endTime: real("end_time"),
   embedding: vector("embedding", { dimensions: 1536 }), // OpenAI text-embedding-3-small
   visualDescription: text("visual_description"),
   createdAt: timestamp("created_at").defaultNow(),
