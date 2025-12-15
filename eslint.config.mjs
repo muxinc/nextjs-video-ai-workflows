@@ -2,6 +2,12 @@ import antfu from "@antfu/eslint-config";
 import nextPlugin from "@next/eslint-plugin-next";
 import remotionPlugin from "@remotion/eslint-plugin";
 
+const nextRecommended = nextPlugin.configs.recommended ?? { rules: {} };
+const nextRecommendedRules = nextRecommended.rules ?? {};
+const offNextRules = Object.fromEntries(
+  Object.keys(nextRecommendedRules).map(k => [k, "off"]),
+);
+
 export default antfu({
   type: "app",
   typescript: true,
@@ -46,7 +52,7 @@ export default antfu({
     }],
     "unicorn/filename-case": ["error", {
       case: "kebabCase",
-      ignore: ["README.md", "^[A-Z]+\\.md$"],
+      ignore: ["README.md", "^[A-Z]+\\.md$", "^DOCS/.*"],
     }],
     // Cuddled else: } else { on same line
     "style/brace-style": ["error", "1tbs"],
@@ -63,12 +69,18 @@ export default antfu({
     ...nextPlugin.configs["core-web-vitals"].rules,
   },
 }, {
-  // Remotion specific rules
-  files: ["remotion/**/*.{ts,tsx}"],
-  plugins: {
-    "@remotion": remotionPlugin,
-  },
+  // Remotion rules applied only to remotion files
+  files: ["remotion/**"],
+  ...remotionPlugin.flatPlugin,
   rules: {
-    ...remotionPlugin.configs.recommended.rules,
+    // Allow process.env in Remotion scripts (e.g., deploy.mjs)
+    "node/no-process-env": ["off"],
+    ...remotionPlugin.flatPlugin.rules,
+  },
+}, {
+  // Disable all Next.js rules within remotion files
+  files: ["remotion/**"],
+  rules: {
+    ...offNextRules,
   },
 });
