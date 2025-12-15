@@ -17,7 +17,7 @@ import type { SummaryStepId } from "@/workflows/get-summary-and-tags";
 import { StatusBadge, StepProgress } from "../workflows-panel/ui";
 
 import type { SummaryStatus, SummaryTone } from "./actions";
-import { pollSummaryWorkflowAction, startSummaryWorkflowAction } from "./actions";
+import { pollSummaryWorkflowAction, saveSummaryAndTagsAction, startSummaryWorkflowAction } from "./actions";
 
 const TONE_OPTIONS: { value: SummaryTone; label: string }[] = [
   { value: "normal", label: "NORMAL" },
@@ -128,6 +128,10 @@ function Layer1SummaryAndTagsInner({ assetId }: { assetId: string }) {
         stopPolling();
         if (result.status === "completed") {
           markWorkflowCompleted(assetId, "summarizeAndTag", undefined);
+          // Save summary and tags to database
+          if (result.result?.description && result.result?.tags) {
+            void saveSummaryAndTagsAction(assetId, result.result.description, result.result.tags);
+          }
         } else {
           markWorkflowFailed(assetId, "summarizeAndTag", undefined, result.error || "Workflow failed.");
           clearWorkflowProgress(assetId, "summarizeAndTag", undefined);

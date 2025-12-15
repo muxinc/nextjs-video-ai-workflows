@@ -1,9 +1,11 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { getRun, start } from "workflow/api";
 
 import { env } from "@/app/lib/env";
 import type { WorkflowStatus } from "@/app/media/types";
+import { db, videos } from "@/db";
 import { getSummaryAndTagsWorkflow } from "@/workflows/get-summary-and-tags";
 import type { GetSummaryAndTagsResult, SummaryStepId, SummaryWorkflowResult } from "@/workflows/get-summary-and-tags";
 
@@ -130,5 +132,32 @@ export async function pollSummaryWorkflowAction(
       nextIndex: startIndex,
       error: message,
     };
+  }
+}
+
+export interface SaveSummaryResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function saveSummaryAndTagsAction(
+  assetId: string,
+  summary: string,
+  tags: string[],
+): Promise<SaveSummaryResult> {
+  try {
+    await db
+      .update(videos)
+      .set({
+        summary,
+        tags,
+        updatedAt: new Date(),
+      })
+      .where(eq(videos.muxAssetId, assetId));
+
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to save summary";
+    return { success: false, error: message };
   }
 }

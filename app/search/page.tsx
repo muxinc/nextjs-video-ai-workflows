@@ -1,7 +1,7 @@
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
-import { searchVideoChunks } from "@/app/lib/supabase/search";
-import type { VideoChunkResult } from "@/app/lib/supabase/search";
+import { searchVideoChunks } from "@/db/search";
+import type { VideoChunkResult } from "@/db/search";
 
 import { SearchResults } from "./search-results";
 

@@ -41,9 +41,8 @@ const EnvSchema = z.object({
   S3_ACCESS_KEY_ID: requiredString("S3 access key ID for translation workflows.", "Required to store translated artifacts."),
   S3_SECRET_ACCESS_KEY: requiredString("S3 secret access key for translation workflows.", "Required to store translated artifacts."),
 
-  // Supabase (for persisted asset metadata storage)
-  NEXT_PUBLIC_SUPABASE_URL: requiredString("Supabase project URL.", "Required to connect to Supabase."),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: requiredString("Supabase anonymous/public key.", "Required to connect to Supabase."),
+  // Database (PostgreSQL with pgvector)
+  DATABASE_URL: requiredString("PostgreSQL connection string.", "Required to connect to the database."),
 
   // Remotion Lambda (required for rendering videos)
   REMOTION_AWS_ACCESS_KEY_ID: requiredString("Remotion AWS access key ID.", "Required to render videos."),

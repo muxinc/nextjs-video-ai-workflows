@@ -21,6 +21,8 @@ export default antfu({
     "next-env.d.ts",
     // Vercel Workflows auto-generated files
     "app/.well-known/**",
+    // Drizzle migration meta files (auto-generated)
+    "db/migrations/meta/**",
   ],
   stylistic: {
     indent: 2,

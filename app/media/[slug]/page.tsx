@@ -1,10 +1,11 @@
+import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
 import { getPlaybackIdForAsset } from "@/app/lib/mux";
-import { createClient } from "@/app/lib/supabase/server";
 import { getVideoTitle } from "@/app/media/utils";
+import { db, videos } from "@/db";
 
 import { MediaContent } from "./media-content";
 import { parseVtt } from "./transcript/helpers";
@@ -24,13 +25,12 @@ interface MediaDetailPageProps {
 export default async function MediaDetailPage({ params }: MediaDetailPageProps) {
   const { slug } = await params;
 
-  // Slug is the mux_asset_id - fetch video metadata from Supabase
-  const supabase = await createClient();
-  const { data: video } = await supabase
-    .from("videos")
+  // Slug is the mux_asset_id - fetch video metadata from database
+  const [video] = await db
     .select()
-    .eq("mux_asset_id", slug)
-    .single();
+    .from(videos)
+    .where(eq(videos.muxAssetId, slug))
+    .limit(1);
 
   if (!video) {
     notFound();
@@ -50,9 +50,9 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
   // Get video metadata
   const title = getVideoTitle(video);
 
-  // Parse transcript from Supabase VTT
-  const transcriptCues = video.transcript_en_vtt ?
-      parseVtt(video.transcript_en_vtt) :
+  // Parse transcript from VTT
+  const transcriptCues = video.transcriptVtt ?
+      parseVtt(video.transcriptVtt) :
       [];
 
   return (
@@ -65,7 +65,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
           <MediaContent
             playbackId={playbackId}
             playbackPolicy={playbackPolicy}
-            muxAssetId={video.mux_asset_id}
+            muxAssetId={video.muxAssetId}
             title={title}
             transcriptCues={transcriptCues}
           />
