@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 
-import type { WorkflowStatus } from "../../types";
+import type { TranscriptCue, WorkflowStatus } from "../../types";
 import { Layer2Localization } from "../localization/ui";
 import { Layer3SocialClips } from "../social-clips/ui";
 import { Layer1SummaryAndTags } from "../summarize-and-tag/ui";
@@ -182,7 +182,15 @@ export function StepProgress<T extends string>({
 // Workflows Panel Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function WorkflowsPanel({ assetId }: { assetId: string }) {
+interface WorkflowsPanelProps {
+  assetId: string;
+  playbackId: string;
+  playbackPolicy: "public" | "signed";
+  transcriptCues: TranscriptCue[];
+  title: string;
+}
+
+export function WorkflowsPanel({ assetId, playbackId, playbackPolicy, transcriptCues, title }: WorkflowsPanelProps) {
   return (
     <aside className="panel-brutal" aria-label="Workflows">
       {/* Panel Header with stripes */}
@@ -228,7 +236,13 @@ export function WorkflowsPanel({ assetId }: { assetId: string }) {
           </h3>
         </div>
         <div className="p-4">
-          <Layer3SocialClips assetId={assetId} />
+          <Layer3SocialClips
+            assetId={assetId}
+            playbackId={playbackId}
+            playbackPolicy={playbackPolicy}
+            transcriptCues={transcriptCues}
+            title={title}
+          />
         </div>
       </section>
     </aside>

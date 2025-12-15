@@ -613,38 +613,42 @@ This ordering builds the app layer-by-layer so the teaching progression is alway
   - [x] Workflow attaches dubbed audio track directly to the Mux asset
   - [x] Refresh asset data to see new track in player selector
 
-### 6) Layer 3: Clip creation UI (Remotion preview — "free" iteration)
+### 6) Layer 3: Social clips rendering (audiogram style with burnt-in captions)
 
-- [ ] **Create `/media/[slug]/clips/new` UI**
-  - [ ] Inputs: start/end, preset (9:16/1:1/16:9), caption lang, audio lang, styling options
-  - [ ] Always-on Remotion Player preview (client-side, no render cost)
-  - [ ] Preview updates live as user changes inputs — unlimited iteration before committing
-  - [ ] Clear "Layer 3: Connectors" label in UI
-  - [ ] "Render clip" CTA only triggers workflow when user is satisfied with preview
-- [ ] **Define composition props contract**
-  - [ ] `playbackId`, timing, caption source (VTT/track), optional dubbed audio override, branding preset
-  - [ ] Same props power both preview (client) and render (server)
+- [x] **Create Remotion compositions for social clips**
+  - [x] Define 3 aspect ratio variants: Portrait (9:16), Square (1:1), Landscape (16:9)
+  - [x] Input props schema: `playbackId`, `startTime`, `endTime`, `captions[]`, optional `title`
+  - [x] **Audio-only extraction**: uses Mux audio URL (`stream.mux.com/{playbackId}/audio.m4a`)
+  - [x] **Burnt-in captions**: animated caption display synced to transcript cues
+  - [x] **Audiogram design**: audio visualizer bars + caption text on styled background
+  - [x] Register compositions in `remotion/root.tsx` with dynamic duration calculation
+- [x] **Implement "[RENDER VIDEOS]" button in workflows panel**
+  - [x] Button triggers parallel rendering of all 3 aspect ratios simultaneously
+  - [x] Clip timing and captions automatically extracted from transcript cues (~15 seconds)
+  - [x] Clear "Layer 3: Connectors" label in UI (LVL 3 badge)
+- [x] **Multi-clip render workflow**
+  - [x] `startSocialClipsRenderAction` starts 3 parallel `renderVideoWorkflow` instances
+  - [x] `pollSocialClipsRenderAction` polls status for all clips simultaneously
+  - [x] Each clip uses existing `renderVideoWorkflow` with different composition ID
+  - [x] Captions passed as input props, filtered to clip time range
+- [x] **UI: clip progress and download**
+  - [x] Shows compact progress cards for each aspect ratio (Portrait/Square/Landscape)
+  - [x] Mini step indicators: Preparing → Rendering → Finalizing
+  - [x] Download buttons appear when each clip completes (shows file size)
+  - [x] Aggregate status badge reflects overall progress
+  - [x] Error handling and reset functionality
 
-### 7) Layer 3: Connectors (full orchestration)
+### 7) Layer 3: Connectors (future: full orchestration with translations)
 
-- [ ] **`POST /api/clips/create`**
-  - [ ] Starts `createClipWorkflow` which orchestrates:
+- [ ] **Extend clip creation with translation steps** (future enhancement)
+  - [ ] `POST /api/clips/create` starts `createClipWorkflow` which orchestrates:
     - Step 1: `translateCaptions` for each target language (if needed)
     - Step 2: `translateAudio` for each target language (if needed)
-    - Step 3: Remotion render
+    - Step 3: Remotion render for each aspect ratio
     - Step 4: Upload to S3 storage
   - [ ] Returns workflow run ID; client tracks progress in localStorage
-- [ ] **UI: clip status**
-  - [ ] Shows which step is running: "Translating captions..." → "Dubbing audio..." → "Rendering..." → "Uploading..."
-  - [ ] Poll workflow status and update localStorage
-  - [ ] Shows poster + download link when ready (URLs returned from workflow)
-
-### 8) Polish & showcase readiness
-
-- [ ] **Three-layer framing is explicit in UI**
-  - [ ] Layer 1: Primitives (summary/tags)
-  - [ ] Layer 2: Workflows (captions, dubbing)
-  - [ ] Layer 3: Connectors (rendered clips)
-- [ ] **Seed content strategy**
-  - [ ] Ensure staging Mux account has 6–12 talks with ready English caption tracks
-  - [ ] Pre-run Layer 2 on select talks (1–2 translated captions, 1 dubbed audio) so tracks exist on first load
+- [ ] **Preview UI** (future enhancement)
+  - [ ] `/media/[slug]/clips/new` page with Remotion Player preview
+  - [ ] Inputs: start/end, preset, caption lang, audio lang, styling options
+  - [ ] Preview updates live as user changes inputs — unlimited iteration before committing
+  - [ ] "Render clip" CTA only triggers workflow when satisfied with preview

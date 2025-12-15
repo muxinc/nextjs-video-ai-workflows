@@ -104,6 +104,85 @@ export async function getPlaybackIdForAsset(assetId: string): Promise<PlaybackAs
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Signed URL Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Checks if signing keys are configured.
+ */
+export function hasSigningKeys(): boolean {
+  return Boolean(env.MUX_SIGNING_KEY && env.MUX_PRIVATE_KEY);
+}
+
+/**
+ * Generates a signed JWT token for Mux playback URLs.
+ * Requires MUX_SIGNING_KEY and MUX_PRIVATE_KEY to be configured.
+ *
+ * @param playbackId - The Mux playback ID
+ * @param type - The type of token (video, thumbnail, etc.)
+ * @returns The signed JWT token
+ * @throws Error if signing keys are not configured
+ */
+export async function generatePlaybackToken(
+  playbackId: string,
+  type: "video" | "thumbnail" | "gif" | "storyboard" = "video",
+): Promise<string> {
+  if (!env.MUX_SIGNING_KEY || !env.MUX_PRIVATE_KEY) {
+    throw new Error(
+      "MUX_SIGNING_KEY and MUX_PRIVATE_KEY must be configured to generate signed playback URLs",
+    );
+  }
+
+  return mux.jwt.signPlaybackId(playbackId, {
+    keyId: env.MUX_SIGNING_KEY,
+    keySecret: env.MUX_PRIVATE_KEY,
+    type,
+    expiration: "1d", // Default to 1 day
+  });
+}
+
+/**
+ * Generates a Mux static rendition URL for audio extraction, signed if necessary.
+ *
+ * IMPORTANT: Static renditions must be explicitly enabled on the Mux asset.
+ * See: https://www.mux.com/docs/guides/enable-static-mp4-renditions
+ *
+ * The asset should have an audio-only static rendition enabled so this endpoint exists:
+ * - `audio.m4a`
+ *
+ * For public playback IDs, returns unsigned URL.
+ * For signed playback IDs, generates a signed URL with token.
+ *
+ * @param playbackId - The Mux playback ID
+ * @param policy - The playback policy ("public" or "signed")
+ * @param rendition - The static rendition file name to use (default: "audio.m4a")
+ * @returns The static rendition URL (signed or unsigned)
+ */
+export async function getMuxAudioUrl(
+  playbackId: string,
+  policy: PlaybackPolicy,
+  rendition: string = "audio.m4a",
+): Promise<string> {
+  // Use audio-only static rendition (recommended for Remotion audio analysis/rendering).
+  // Note: Static renditions must be enabled on the asset for this to work
+  const baseUrl = `https://stream.mux.com/${playbackId}/${rendition}`;
+
+  if (policy === "public") {
+    return baseUrl;
+  }
+
+  // Signed playback requires a token
+  if (!hasSigningKeys()) {
+    throw new Error(
+      "Cannot generate signed audio URL: MUX_SIGNING_KEY and MUX_PRIVATE_KEY must be configured",
+    );
+  }
+
+  const token = await generatePlaybackToken(playbackId, "video");
+  return `${baseUrl}?token=${token}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Audio Track Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 

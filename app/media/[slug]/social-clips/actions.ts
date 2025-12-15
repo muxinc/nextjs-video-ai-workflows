@@ -3,7 +3,11 @@
 import { headers } from "next/headers";
 import { getRun, start } from "workflow/api";
 
+import { getMuxAudioUrl } from "@/app/lib/mux";
+import type { PlaybackPolicy } from "@/app/lib/mux";
 import type { WorkflowStatus } from "@/app/media/types";
+import type { AspectRatio, CaptionCue } from "@/remotion/social-clip/constants";
+import { ASPECT_RATIO_CONFIG } from "@/remotion/social-clip/constants";
 import { renderVideoWorkflow } from "@/workflows/render-video";
 import type { RenderStepId, RenderVideoResult, RenderWorkflowResult } from "@/workflows/render-video";
 
@@ -19,20 +23,33 @@ interface RenderProgressEvent {
   progress?: number;
 }
 
-export interface RenderWorkflowStartInput {
-  assetId: string;
-  compositionId: string;
-  inputProps: Record<string, unknown>;
-  fileName: string;
+export interface SocialClipInput {
+  playbackId: string;
+  playbackPolicy: PlaybackPolicy;
+  startTime: number;
+  endTime: number;
+  title?: string;
+  captions: CaptionCue[];
 }
 
-export interface RenderWorkflowStartResult {
+export interface RenderSocialClipsInput {
+  assetId: string;
+  clip: SocialClipInput;
+}
+
+export interface ClipRenderResult {
+  aspectRatio: AspectRatio;
   runId: string;
   status: WorkflowStatus;
   error?: string;
 }
 
-export interface RenderWorkflowPollResult {
+export interface RenderSocialClipsResult {
+  clips: ClipRenderResult[];
+}
+
+export interface ClipPollResult {
+  aspectRatio: AspectRatio;
   status: WorkflowStatus;
   completedSteps: RenderStepId[];
   currentStep?: RenderStepId;
@@ -40,6 +57,10 @@ export interface RenderWorkflowPollResult {
   error?: string;
   result?: RenderVideoResult;
   renderProgress?: number;
+}
+
+export interface PollSocialClipsResult {
+  clips: ClipPollResult[];
 }
 
 export type { RenderStepId, RenderVideoResult };
@@ -60,92 +81,118 @@ async function getBaseUrl(): Promise<string> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Start render video workflow (non-blocking)
- * Returns immediately with run ID for polling
+ * Start render workflows for all 3 aspect ratios (non-blocking)
+ * Returns immediately with run IDs for polling
  */
-export async function startRenderWorkflowAction(
-  input: RenderWorkflowStartInput,
-): Promise<RenderWorkflowStartResult> {
-  if (!input.assetId) {
-    return { runId: "", status: "failed", error: "Missing assetId." };
+export async function startSocialClipsRenderAction(
+  input: RenderSocialClipsInput,
+): Promise<RenderSocialClipsResult> {
+  const { assetId, clip } = input;
+  const baseUrl = await getBaseUrl();
+
+  // Generate signed audio URL if needed (server-side to support signed playback)
+  const audioUrl = await getMuxAudioUrl(clip.playbackId, clip.playbackPolicy);
+
+  const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
+  const results: ClipRenderResult[] = [];
+
+  for (const aspectRatio of aspectRatios) {
+    const config = ASPECT_RATIO_CONFIG[aspectRatio];
+    const fileName = `social-clip-${aspectRatio}-${assetId}.mp4`;
+
+    try {
+      const run = await start(renderVideoWorkflow, [{
+        assetId,
+        compositionId: config.id,
+        inputProps: {
+          audioUrl,
+          startTime: clip.startTime,
+          endTime: clip.endTime,
+          title: clip.title,
+          captions: clip.captions,
+        },
+        fileName,
+        baseUrl,
+      }]);
+
+      results.push({
+        aspectRatio,
+        runId: run.runId,
+        status: "running",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to start render";
+      results.push({
+        aspectRatio,
+        runId: "",
+        status: "failed",
+        error: message,
+      });
+    }
   }
 
-  if (!input.fileName) {
-    return { runId: "", status: "failed", error: "Missing fileName." };
-  }
-
-  if (!input.compositionId) {
-    return { runId: "", status: "failed", error: "Missing compositionId." };
-  }
-
-  try {
-    const baseUrl = await getBaseUrl();
-
-    const run = await start(renderVideoWorkflow, [{
-      ...input,
-      baseUrl,
-    }]);
-
-    return { runId: run.runId, status: "running" };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to start render workflow";
-    return { runId: "", status: "failed", error: message };
-  }
+  return { clips: results };
 }
 
 /**
- * Poll render workflow status
+ * Poll render workflow status for multiple clips
  */
-export async function pollRenderWorkflowAction(
-  runId: string,
-  startIndex = 0,
-): Promise<RenderWorkflowPollResult> {
-  try {
-    const run = getRun<RenderWorkflowResult>(runId);
+export async function pollSocialClipsRenderAction(
+  clips: Array<{ aspectRatio: AspectRatio; runId: string; nextIndex: number }>,
+): Promise<PollSocialClipsResult> {
+  const results: ClipPollResult[] = [];
 
-    const workflowStatus = await run.status;
-    const status = mapWorkflowStatus(workflowStatus);
+  for (const clipInfo of clips) {
+    try {
+      const run = getRun<RenderWorkflowResult>(clipInfo.runId);
+      const workflowStatus = await run.status;
+      const status = mapWorkflowStatus(workflowStatus);
 
-    const events = await readProgressEvents(
-      run.getReadable<RenderProgressEvent>({ namespace: "progress", startIndex }),
-    );
+      const events = await readProgressEvents(
+        run.getReadable<RenderProgressEvent>({ namespace: "progress", startIndex: clipInfo.nextIndex }),
+      );
 
-    const lastCurrent = [...events].reverse().find(e => e.type === "current");
-    const completedFromEvents = events
-      .filter(e => e.type === "completed")
-      .map(e => e.step);
+      const lastCurrent = [...events].reverse().find(e => e.type === "current");
+      const completedFromEvents = events
+        .filter(e => e.type === "completed")
+        .map(e => e.step);
 
-    // Extract render progress from latest render step event
-    const renderProgressEvent = [...events].reverse().find(
-      e => e.step === "render" && e.progress !== undefined,
-    );
+      const renderProgressEvent = [...events].reverse().find(
+        e => e.step === "render" && e.progress !== undefined,
+      );
 
-    if (status === "completed" || status === "failed") {
-      const result = await run.returnValue;
-      return {
-        status: result.success ? "completed" : "failed",
-        completedSteps: result.completedSteps,
-        currentStep: result.currentStep,
-        nextIndex: startIndex + events.length,
-        error: result.error,
-        result: result.result,
-      };
+      if (status === "completed" || status === "failed") {
+        const result = await run.returnValue;
+        results.push({
+          aspectRatio: clipInfo.aspectRatio,
+          status: result.success ? "completed" : "failed",
+          completedSteps: result.completedSteps,
+          currentStep: result.currentStep,
+          nextIndex: clipInfo.nextIndex + events.length,
+          error: result.error,
+          result: result.result,
+        });
+      } else {
+        results.push({
+          aspectRatio: clipInfo.aspectRatio,
+          status,
+          completedSteps: completedFromEvents,
+          currentStep: lastCurrent?.step,
+          nextIndex: clipInfo.nextIndex + events.length,
+          renderProgress: renderProgressEvent?.progress,
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to poll workflow";
+      results.push({
+        aspectRatio: clipInfo.aspectRatio,
+        status: "failed",
+        completedSteps: [],
+        nextIndex: clipInfo.nextIndex,
+        error: message,
+      });
     }
-
-    return {
-      status,
-      completedSteps: completedFromEvents,
-      currentStep: lastCurrent?.step,
-      nextIndex: startIndex + events.length,
-      renderProgress: renderProgressEvent?.progress,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to poll workflow status";
-    return {
-      status: "failed",
-      completedSteps: [],
-      nextIndex: startIndex,
-      error: message,
-    };
   }
+
+  return { clips: results };
 }

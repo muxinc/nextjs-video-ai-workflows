@@ -13,6 +13,7 @@ import { WorkflowsPanel } from "./workflows-panel/ui";
 
 interface MediaContentProps {
   playbackId: string;
+  playbackPolicy: "public" | "signed";
   muxAssetId: string;
   title: string;
   transcriptCues: TranscriptCue[];
@@ -24,6 +25,7 @@ interface MediaContentProps {
 
 export function MediaContent({
   playbackId,
+  playbackPolicy,
   muxAssetId,
   title,
   transcriptCues,
@@ -55,7 +57,13 @@ export function MediaContent({
 
         {/* Right Column: Workflows Panel (sticky on desktop) */}
         <div className="md:sticky md:top-6">
-          <WorkflowsPanel assetId={muxAssetId} />
+          <WorkflowsPanel
+            assetId={muxAssetId}
+            playbackId={playbackId}
+            playbackPolicy={playbackPolicy}
+            transcriptCues={transcriptCues}
+            title={title}
+          />
         </div>
       </div>
     </PlayerProvider>

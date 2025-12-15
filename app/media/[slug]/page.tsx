@@ -36,11 +36,13 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
     notFound();
   }
 
-  // Fetch playback ID from Mux
+  // Fetch playback ID and policy from Mux
   let playbackId: string;
+  let playbackPolicy: "public" | "signed";
   try {
     const result = await getPlaybackIdForAsset(slug);
     playbackId = result.playbackId;
+    playbackPolicy = result.policy;
   } catch {
     notFound();
   }
@@ -62,6 +64,7 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
           {/* Main content */}
           <MediaContent
             playbackId={playbackId}
+            playbackPolicy={playbackPolicy}
             muxAssetId={video.mux_asset_id}
             title={title}
             transcriptCues={transcriptCues}
