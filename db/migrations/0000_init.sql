@@ -5,11 +5,9 @@ CREATE TABLE "video_chunks" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"video_id" uuid NOT NULL,
 	"chunk_index" integer NOT NULL,
-	"chunk_text" text NOT NULL,
-	"start_time" real NOT NULL,
-	"end_time" real NOT NULL,
+	"start_time" real,
+	"end_time" real,
 	"embedding" vector(1536),
-	"visual_description" text,
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
@@ -18,14 +16,12 @@ CREATE TABLE "videos" (
 	"mux_asset_id" text NOT NULL,
 	"mux_playback_id" text,
 	"title" text,
-	"description" text,
+	"summary" text,
 	"meta" jsonb,
 	"aspect_ratio" text,
 	"duration" real,
-	"chapters" jsonb,
-	"topics" text[],
-	"transcript_en_text" text,
-	"transcript_en_vtt" text,
+	"tags" text[],
+	"transcript_vtt" text,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now(),
 	CONSTRAINT "videos_mux_asset_id_unique" UNIQUE("mux_asset_id")

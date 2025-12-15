@@ -51,8 +51,8 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
   const title = getVideoTitle(video);
 
   // Parse transcript from VTT
-  const transcriptCues = video.transcriptEnVtt ?
-      parseVtt(video.transcriptEnVtt) :
+  const transcriptCues = video.transcriptVtt ?
+      parseVtt(video.transcriptVtt) :
       [];
 
   return (

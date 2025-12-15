@@ -8,14 +8,14 @@ interface TalkCardProps {
   slug: string;
   title: string;
   playbackId: string | null;
-  topics: string[];
+  tags: string[];
 }
 
 function getThumbnailUrl(playbackId: string): string {
   return `https://image.mux.com/${playbackId}/thumbnail.webp?width=640&height=360&fit_mode=smartcrop`;
 }
 
-export function TalkCard({ slug, title, playbackId, topics }: TalkCardProps) {
+export function TalkCard({ slug, title, playbackId, tags }: TalkCardProps) {
   const shouldReduceMotion = useReducedMotion();
 
   const cardVariants = {
@@ -97,16 +97,16 @@ export function TalkCard({ slug, title, playbackId, topics }: TalkCardProps) {
             {title}
           </h3>
 
-          {/* Topics (AI-generated) */}
-          {topics.length > 0 && (
+          {/* Tags (AI-generated) */}
+          {tags.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {topics.slice(0, 3).map(topic => (
+              {tags.slice(0, 3).map(tag => (
                 <span
-                  key={topic}
+                  key={tag}
                   className="border-2 border-border bg-surface px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-foreground"
                   style={{ fontFamily: "var(--font-space-mono)" }}
                 >
-                  {topic}
+                  {tag}
                 </span>
               ))}
             </div>

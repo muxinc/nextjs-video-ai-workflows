@@ -296,7 +296,7 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
                         slug={video.muxAssetId}
                         title={getVideoTitle(video)}
                         playbackId={playbackIdMap.get(video.muxAssetId) ?? null}
-                        topics={video.topics ?? []}
+                        tags={video.tags ?? []}
                       />
                     ))}
                   </div>

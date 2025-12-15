@@ -265,8 +265,9 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
 
       // 3. Map semantic results to cues
       const semanticHitsFromSearch = semanticResults
+        .filter(result => result.startTime !== null)
         .map((result) => {
-          const targetCue = findCueByTime(result.startTime);
+          const targetCue = findCueByTime(result.startTime!);
           return targetCue ? { cueId: targetCue.id, type: "semantic" as const } : null;
         })
         .filter((hit): hit is { cueId: string; type: "semantic" } => hit !== null);

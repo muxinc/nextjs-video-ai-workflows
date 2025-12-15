@@ -13,15 +13,13 @@ import { db, videoChunks, videos } from "./index";
 /** Result from the video chunk search */
 export interface VideoChunkResult {
   chunk_id: string;
-  chunk_text: string;
   mux_asset_id: string;
-  parent_video_topics: string[] | null;
+  parent_video_tags: string[] | null;
   similarity_score: number;
   video_id: string;
-  visual_description: string | null;
   playback_id: string | null;
   title: string | null;
-  description: string | null;
+  summary: string | null;
   start_time: number | null;
   end_time: number | null;
 }
@@ -29,8 +27,7 @@ export interface VideoChunkResult {
 /** Result from searching within a specific video's transcript */
 export interface ChunkWithinVideoResult {
   chunkId: string;
-  chunkText: string;
-  startTime: number;
+  startTime: number | null;
   similarityScore: number;
 }
 
@@ -63,15 +60,13 @@ export async function searchVideoChunks(
   const results = await db
     .select({
       chunkId: videoChunks.id,
-      chunkText: videoChunks.chunkText,
       videoId: videoChunks.videoId,
-      visualDescription: videoChunks.visualDescription,
       startTime: videoChunks.startTime,
       endTime: videoChunks.endTime,
       muxAssetId: videos.muxAssetId,
       title: videos.title,
-      description: videos.description,
-      topics: videos.topics,
+      summary: videos.summary,
+      tags: videos.tags,
       similarity,
     })
     .from(videoChunks)
@@ -96,15 +91,13 @@ export async function searchVideoChunks(
   // Map to expected format
   return results.map(result => ({
     chunk_id: result.chunkId,
-    chunk_text: result.chunkText,
     mux_asset_id: result.muxAssetId,
-    parent_video_topics: result.topics,
+    parent_video_tags: result.tags,
     similarity_score: result.similarity,
     video_id: result.videoId,
-    visual_description: result.visualDescription,
     playback_id: playbackMap.get(result.muxAssetId) ?? null,
     title: result.title,
-    description: result.description,
+    summary: result.summary,
     start_time: result.startTime,
     end_time: result.endTime,
   }));
@@ -136,7 +129,6 @@ export async function searchChunksWithinVideo(
   const results = await db
     .select({
       chunkId: videoChunks.id,
-      chunkText: videoChunks.chunkText,
       startTime: videoChunks.startTime,
       similarity,
     })
@@ -149,9 +141,8 @@ export async function searchChunksWithinVideo(
     .orderBy(desc(similarity))
     .limit(limit);
 
-  return results.map((result: { chunkId: string; chunkText: string; startTime: number; similarity: number }) => ({
+  return results.map(result => ({
     chunkId: result.chunkId,
-    chunkText: result.chunkText,
     startTime: result.startTime,
     similarityScore: result.similarity,
   }));

@@ -53,7 +53,7 @@ async function importMuxAssets() {
 
   // Fetch all assets from Mux (paginated)
   const allAssets: Mux.Video.Asset[] = [];
-  let page: Mux.Video.AssetsListResponse | undefined;
+  let page: Awaited<ReturnType<typeof mux.video.assets.list>> | undefined;
 
   do {
     page = await mux.video.assets.list({
@@ -112,7 +112,7 @@ async function importMuxAssets() {
           meta: asset as unknown as Record<string, unknown>,
           aspectRatio: asset.aspect_ratio || null,
           duration: asset.duration || null,
-          transcriptEnVtt: transcriptVtt,
+          transcriptVtt,
         })
         .onConflictDoUpdate({
           target: schema.videos.muxAssetId,
@@ -122,7 +122,7 @@ async function importMuxAssets() {
             meta: asset as unknown as Record<string, unknown>,
             aspectRatio: asset.aspect_ratio || null,
             duration: asset.duration || null,
-            transcriptEnVtt: transcriptVtt,
+            transcriptVtt,
             updatedAt: new Date(),
           },
         })
@@ -170,12 +170,11 @@ async function importMuxAssets() {
 
           // Use raw SQL with raw embedding string for proper pgvector format
           await pool.query(
-            `INSERT INTO video_chunks (video_id, chunk_index, chunk_text, start_time, end_time, embedding)
-             VALUES ($1, $2, $3, $4, $5, $6::vector)`,
+            `INSERT INTO video_chunks (video_id, chunk_index, start_time, end_time, embedding)
+             VALUES ($1, $2, $3, $4, $5::vector)`,
             [
               video.id,
               i,
-              null,
               chunk.metadata.startTime ?? null,
               chunk.metadata.endTime ?? null,
               embeddingStr,

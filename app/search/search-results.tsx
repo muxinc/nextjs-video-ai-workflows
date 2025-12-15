@@ -70,20 +70,22 @@ function SearchResult({ result }: { result: VideoChunkResult }) {
             {result.title || `Video ${result.video_id.slice(0, 8)}`}
           </h3>
 
-          {/* Chunk text (transcript excerpt) */}
-          <p className="line-clamp-2 text-sm text-foreground-muted">
-            {result.chunk_text}
-          </p>
+          {/* Summary */}
+          {result.summary && (
+            <p className="line-clamp-2 text-sm text-foreground-muted">
+              {result.summary}
+            </p>
+          )}
 
-          {/* Topics */}
-          {result.parent_video_topics && result.parent_video_topics.length > 0 && (
+          {/* Tags */}
+          {result.parent_video_tags && result.parent_video_tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {result.parent_video_topics.slice(0, 3).map(topic => (
+              {result.parent_video_tags.slice(0, 3).map(tag => (
                 <span
-                  key={topic}
+                  key={tag}
                   className="border border-border bg-surface-elevated px-1.5 py-0.5 text-[10px] text-foreground-muted"
                 >
-                  {topic}
+                  {tag}
                 </span>
               ))}
             </div>
