@@ -3,7 +3,7 @@ import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } fr
 
 const { fontFamily } = loadFont();
 
-export function MyComposition() {
+export function DefaultComposition() {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 

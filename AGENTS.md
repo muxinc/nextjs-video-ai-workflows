@@ -277,10 +277,10 @@ npm run remotion:studio
 
 # Local render — test rendering videos on your machine
 # Pass the composition name as an argument
-npm run remotion:render:local MyComposition
+npm run remotion:render:local default-composition
 
 # Optionally specify an output path
-npm run remotion:render:local MyComposition out/foo.mp4
+npm run remotion:render:local default-composition out/foo.mp4
 
 # Production deploy — bundle and deploy to AWS Lambda
 npm run remotion:deploy
