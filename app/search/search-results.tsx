@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 
-import type { VideoChunkResult } from "@/app/lib/supabase/search";
+import type { VideoChunkResult } from "@/db/search";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions

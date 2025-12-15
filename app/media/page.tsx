@@ -1,11 +1,12 @@
+import { asc, count as drizzleCount } from "drizzle-orm";
 import Link from "next/link";
 
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
 import { getPlaybackIdForAsset } from "@/app/lib/mux";
-import { createClient } from "@/app/lib/supabase/server";
 import { TalkCard } from "@/app/media/talk-card";
 import { getVideoTitle } from "@/app/media/utils";
+import { db, videos } from "@/db";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -236,24 +237,22 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE - 1;
 
-  // Fetch paginated videos from Supabase with total count
-  const supabase = await createClient();
-  const { data: paginatedVideos, count } = await supabase
-    .from("videos")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: true })
-    .range(startIndex, endIndex);
+  // Fetch paginated videos from database with total count
+  const [paginatedVideos, [{ count }]] = await Promise.all([
+    db.select().from(videos).orderBy(asc(videos.createdAt)).limit(ITEMS_PER_PAGE).offset(startIndex),
+    db.select({ count: drizzleCount() }).from(videos),
+  ]);
 
-  const videos = paginatedVideos ?? [];
+  const videoList = paginatedVideos ?? [];
   const totalItems = count ?? 0;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
   const validPage = Math.min(currentPage, Math.max(1, totalPages));
 
   // Fetch playback IDs from Mux for current page videos only (in parallel)
   const playbackResults = await Promise.all(
-    videos.map(async (video) => {
+    videoList.map(async (video) => {
       try {
-        const result = await getPlaybackIdForAsset(video.mux_asset_id);
+        const result = await getPlaybackIdForAsset(video.muxAssetId);
         return result.playbackId;
       } catch {
         return null;
@@ -261,10 +260,10 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
     }),
   );
 
-  // Create a map of mux_asset_id -> playbackId for easy lookup
+  // Create a map of muxAssetId -> playbackId for easy lookup
   const playbackIdMap = new Map<string, string | null>();
-  videos.forEach((video, index) => {
-    playbackIdMap.set(video.mux_asset_id, playbackResults[index]);
+  videoList.forEach((video, index) => {
+    playbackIdMap.set(video.muxAssetId, playbackResults[index]);
   });
 
   return (
@@ -288,16 +287,16 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
           </div>
 
           {/* Video Grid */}
-          {videos.length > 0 ?
+          {videoList.length > 0 ?
               (
                 <>
                   <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                    {videos.map(video => (
+                    {videoList.map(video => (
                       <TalkCard
                         key={video.id}
-                        slug={video.mux_asset_id}
+                        slug={video.muxAssetId}
                         title={getVideoTitle(video)}
-                        playbackId={playbackIdMap.get(video.mux_asset_id) ?? null}
+                        playbackId={playbackIdMap.get(video.muxAssetId) ?? null}
                         topics={video.topics ?? []}
                       />
                     ))}

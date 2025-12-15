@@ -1,7 +1,7 @@
 "use server";
 
-import { searchChunksWithinVideo } from "@/app/lib/supabase/search";
-import type { ChunkWithinVideoResult } from "@/app/lib/supabase/search";
+import { searchChunksWithinVideo } from "@/db/search";
+import type { ChunkWithinVideoResult } from "@/db/search";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Server Actions

@@ -2,9 +2,7 @@
 // Shared utility functions for the media directory
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { Tables } from "@/app/lib/supabase/types";
-
-type Video = Tables<"videos">;
+import type { Video } from "@/db/schema";
 
 /**
  * Returns a display title for a video, falling back to a truncated ID if no title exists.
