@@ -10,26 +10,26 @@ import dotenv from "dotenv";
 import { DISK, RAM, REGION, SITE_NAME, TIMEOUT } from "./config.mjs";
 import { webpackOverride } from "./webpack-override.mjs";
 
-console.log("Selected region:", REGION);
+console.warn("Selected region:", REGION);
 dotenv.config();
 
 if (!process.env.REMOTION_AWS_ACCESS_KEY_ID) {
-  console.log(
+  console.error(
     "The environment variable \"REMOTION_AWS_ACCESS_KEY_ID\" is not set.",
   );
-  console.log("Lambda renders were not set up.");
-  console.log(
+  console.error("Lambda renders were not set up.");
+  console.error(
     "Complete the Lambda setup: at https://www.remotion.dev/docs/lambda/setup",
   );
   process.exit(0);
 }
 if (!process.env.REMOTION_AWS_SECRET_ACCESS_KEY
 ) {
-  console.log(
+  console.error(
     "The environment variable \"REMOTION_REMOTION_AWS_SECRET_ACCESS_KEY\" is not set.",
   );
-  console.log("Lambda renders were not set up.");
-  console.log(
+  console.error("Lambda renders were not set up.");
+  console.error(
     "Complete the Lambda setup: at https://www.remotion.dev/docs/lambda/setup",
   );
   process.exit(0);
@@ -45,7 +45,7 @@ const { functionName, alreadyExisted: functionAlreadyExisted } =
     timeoutInSeconds: TIMEOUT,
     diskSizeInMb: DISK,
   });
-console.log(
+console.warn(
   functionName,
   functionAlreadyExisted ? "(already existed)" : "(created)",
 );
@@ -55,7 +55,7 @@ const { bucketName, alreadyExisted: bucketAlreadyExisted } =
   await getOrCreateBucket({
     region: REGION,
   });
-console.log(
+console.warn(
   bucketName,
   bucketAlreadyExisted ? "(already existed)" : "(created)",
 );
@@ -69,11 +69,11 @@ const { siteName } = await deploySite({
   options: { webpackOverride },
 });
 
-console.log(siteName);
+console.warn(siteName);
 
-console.log();
-console.log("You now have everything you need to render videos!");
-console.log("Re-run this command when:");
-console.log("  1) you changed the video template");
-console.log("  2) you changed config.mjs");
-console.log("  3) you upgraded Remotion to a newer version");
+console.warn();
+console.warn("You now have everything you need to render videos!");
+console.warn("Re-run this command when:");
+console.warn("  1) you changed the video template");
+console.warn("  2) you changed config.mjs");
+console.warn("  3) you upgraded Remotion to a newer version");

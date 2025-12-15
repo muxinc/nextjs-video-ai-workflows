@@ -5,9 +5,9 @@ on:
     branches: [main]
     paths:
       - "remotion/**"
-      - "remotion.config.ts"
-      - "package.json"
-      - "package-lock.json"
+      - remotion.config.ts
+      - package.json
+      - package-lock.json
 
 jobs:
   deploy:
