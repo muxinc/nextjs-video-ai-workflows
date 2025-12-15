@@ -11,7 +11,9 @@ import type { GetSummaryAndTagsResult, SummaryStepId, SummaryWorkflowResult } fr
 
 import { mapWorkflowStatus, readProgressEvents } from "../workflows-panel/helpers";
 
-export type SummaryTone = "normal" | "professional" | "sassy";
+export type SummaryTone = "neutral" | "professional" | "playful";
+
+type MuxSummaryTone = NonNullable<Parameters<typeof getSummaryAndTagsWorkflow>[1]>["tone"];
 
 export type SummaryStatus = WorkflowStatus;
 export type SummaryResult = NonNullable<GetSummaryAndTagsResult>;
@@ -71,10 +73,11 @@ export async function startSummaryWorkflowAction(
   }
 
   try {
+    const muxTone: MuxSummaryTone = tone === "neutral" ? "normal" : tone === "playful" ? "sassy" : "professional";
     const run = await start(getSummaryAndTagsWorkflow, [assetId, {
       muxTokenId: env.MUX_TOKEN_ID,
       muxTokenSecret: env.MUX_TOKEN_SECRET,
-      tone,
+      tone: muxTone,
       includeTranscript: true,
       cleanTranscript: true,
       ...providerConfig,

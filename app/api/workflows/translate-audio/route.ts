@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRun, start } from "workflow/api";
 
+import { env } from "@/app/lib/env";
 import { translateAudioWorkflow } from "@/workflows/translate-audio";
 
 /**
@@ -9,6 +10,13 @@ import { translateAudioWorkflow } from "@/workflows/translate-audio";
  */
 export async function POST(request: Request) {
   try {
+    if (!env.ELEVENLABS_API_KEY) {
+      return NextResponse.json(
+        { error: "ElevenLabs env key required" },
+        { status: 501 },
+      );
+    }
+
     const { assetId, targetLang } = await request.json();
 
     if (!assetId || !targetLang) {

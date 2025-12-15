@@ -1,6 +1,7 @@
 import { getWritable } from "workflow";
 import { start } from "workflow/api";
 
+import { env } from "@/app/lib/env";
 import { findAudioTrack, getAsset } from "@/app/lib/mux";
 import type { AudioStepId } from "@/app/media/[slug]/localization/constants";
 import { translateAudio } from "@mux/ai/workflows";
@@ -136,6 +137,9 @@ async function prepareAudio(
   await writeToStream(progress, { type: "current", step: "prepare" });
   if (!assetId || !targetLang) {
     throw new Error("Missing required parameters for audio translation");
+  }
+  if (!env.ELEVENLABS_API_KEY) {
+    throw new Error("ElevenLabs env key required");
   }
   await sleepMs(500);
   await writeToStream(progress, { type: "completed", step: "prepare" });

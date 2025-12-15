@@ -1,5 +1,6 @@
 import { getWritable } from "workflow";
 
+import { env } from "@/app/lib/env";
 import type { ProgressResponse } from "@/remotion/domain/schema";
 
 import { closeStream, sleepMs, writeToStream } from "./workflow-progress";
@@ -112,6 +113,10 @@ async function prepareRenderStep(
 
   if (!input.baseUrl) {
     throw new Error("Missing baseUrl for API calls");
+  }
+
+  if (!env.REMOTION_AWS_ACCESS_KEY_ID || !env.REMOTION_AWS_SECRET_ACCESS_KEY) {
+    throw new Error("Remotion Lambda env keys required");
   }
 
   await sleepMs(300);

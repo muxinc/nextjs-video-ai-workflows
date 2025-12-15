@@ -188,9 +188,19 @@ interface WorkflowsPanelProps {
   playbackPolicy: "public" | "signed";
   transcriptCues: TranscriptCue[];
   title: string;
+  hasElevenLabsKey: boolean;
+  hasRemotionLambdaKeys: boolean;
 }
 
-export function WorkflowsPanel({ assetId, playbackId, playbackPolicy, transcriptCues, title }: WorkflowsPanelProps) {
+export function WorkflowsPanel({
+  assetId,
+  playbackId,
+  playbackPolicy,
+  transcriptCues,
+  title,
+  hasElevenLabsKey,
+  hasRemotionLambdaKeys,
+}: WorkflowsPanelProps) {
   return (
     <aside className="panel-brutal" aria-label="Workflows">
       {/* Panel Header with stripes */}
@@ -222,7 +232,7 @@ export function WorkflowsPanel({ assetId, playbackId, playbackPolicy, transcript
           </h3>
         </div>
         <div className="p-4">
-          <Layer2Localization assetId={assetId} />
+          <Layer2Localization assetId={assetId} hasElevenLabsKey={hasElevenLabsKey} />
         </div>
       </section>
 
@@ -242,6 +252,7 @@ export function WorkflowsPanel({ assetId, playbackId, playbackPolicy, transcript
             playbackPolicy={playbackPolicy}
             transcriptCues={transcriptCues}
             title={title}
+            hasRemotionLambdaKeys={hasRemotionLambdaKeys}
           />
         </div>
       </section>

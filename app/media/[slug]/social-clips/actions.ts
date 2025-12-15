@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { getRun, start } from "workflow/api";
 
+import { env } from "@/app/lib/env";
 import { getMuxAudioUrl } from "@/app/lib/mux";
 import type { PlaybackPolicy } from "@/app/lib/mux";
 import type { WorkflowStatus } from "@/app/media/types";
@@ -88,6 +89,19 @@ export async function startSocialClipsRenderAction(
   input: RenderSocialClipsInput,
 ): Promise<RenderSocialClipsResult> {
   const { assetId, clip } = input;
+
+  if (!env.REMOTION_AWS_ACCESS_KEY_ID || !env.REMOTION_AWS_SECRET_ACCESS_KEY) {
+    const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
+    return {
+      clips: aspectRatios.map(aspectRatio => ({
+        aspectRatio,
+        runId: "",
+        status: "failed",
+        error: "Remotion Lambda env keys required",
+      })),
+    };
+  }
+
   const baseUrl = await getBaseUrl();
 
   // Generate signed audio URL if needed (server-side to support signed playback)

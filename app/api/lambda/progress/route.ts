@@ -3,6 +3,7 @@ import {
   speculateFunctionName,
 } from "@remotion/lambda/client";
 
+import { env } from "@/app/lib/env";
 import { executeApi } from "@/app/lib/remotion/api-response";
 import { DISK, RAM, REGION, TIMEOUT } from "@/remotion/config.mjs";
 import { ProgressRequest } from "@/remotion/domain/schema";
@@ -15,6 +16,10 @@ import type {
 export const POST = executeApi<ProgressResponse, typeof ProgressRequest>(
   ProgressRequest,
   async (req, body) => {
+    if (!env.REMOTION_AWS_ACCESS_KEY_ID || !env.REMOTION_AWS_SECRET_ACCESS_KEY) {
+      throw new TypeError("Remotion Lambda env keys required");
+    }
+
     const renderProgress = await getRenderProgress({
       bucketName: body.bucketName,
       functionName: speculateFunctionName({

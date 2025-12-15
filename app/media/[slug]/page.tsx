@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
+import { env } from "@/app/lib/env";
 import { getPlaybackIdForAsset } from "@/app/lib/mux";
 import { getVideoTitle } from "@/app/media/utils";
 import { db, videos } from "@/db";
@@ -55,6 +56,11 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
       parseVtt(video.transcriptVtt) :
       [];
 
+  const hasElevenLabsKey = Boolean(env.ELEVENLABS_API_KEY);
+  const hasRemotionLambdaKeys = Boolean(
+    env.REMOTION_AWS_ACCESS_KEY_ID && env.REMOTION_AWS_SECRET_ACCESS_KEY,
+  );
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header currentPath="/media" />
@@ -68,6 +74,8 @@ export default async function MediaDetailPage({ params }: MediaDetailPageProps) 
             muxAssetId={video.muxAssetId}
             title={title}
             transcriptCues={transcriptCues}
+            hasElevenLabsKey={hasElevenLabsKey}
+            hasRemotionLambdaKeys={hasRemotionLambdaKeys}
           />
         </div>
       </main>
