@@ -81,6 +81,7 @@ DATABASE_URL=
 ### Database setup + importing your Mux catalog
 
 This project stores your Mux catalog metadata in Postgres and generates **pgvector embeddings** for semantic search.
+The database schema and migrations are managed with **Drizzle** (see `db/schema.ts` and `db/migrations/`), and the `db:*` scripts use **Drizzle Kit**.
 
 #### 1) Configure your database connection
 
@@ -116,7 +117,7 @@ This fetches all **ready** Mux assets with playback IDs, upserts rows into `vide
 npm run import-mux-assets
 ```
 
-To embed subtitles in a specific language, pass `--language` (defaults to `en`):
+To embed subtitles from a specific captions track language, pass `--language` (defaults to `en`). This should match the language of an **existing** captions track on the source Mux asset — it does **not** translate captions:
 
 ```bash
 npm run import-mux-assets -- --language en
