@@ -65,6 +65,9 @@ function CaptionDisplay({ captions, clipStartTime, aspectRatio }: CaptionDisplay
   // Padding based on aspect ratio
   const horizontalPadding = aspectRatio === "portrait" ? 48 : aspectRatio === "square" ? 40 : 80;
 
+  // Hard offset for brutalist "printed" feel - using positioned div instead of boxShadow
+  const shadowOffset = aspectRatio === "portrait" ? 6 : 4;
+
   return (
     <div
       className="absolute flex items-center justify-center"
@@ -76,21 +79,31 @@ function CaptionDisplay({ captions, clipStartTime, aspectRatio }: CaptionDisplay
         transform: `scale(${scale})`,
       }}
     >
-      <div
-        className="max-w-full border-3 border-accent bg-black/85"
-        style={{
-          padding: aspectRatio === "portrait" ? "24px 32px" : "20px 28px",
-        }}
-      >
-        <p
-          className="m-0 text-center font-semibold leading-[1.4] text-white"
+      <div className="relative">
+        {/* Shadow layer - offset div behind main content */}
+        <div
+          className="absolute inset-0 bg-accent"
           style={{
-            fontFamily,
-            fontSize,
+            transform: `translate(${shadowOffset}px, ${shadowOffset}px)`,
+          }}
+        />
+        {/* Main content layer */}
+        <div
+          className="relative max-w-full border-4 border-black bg-white"
+          style={{
+            padding: aspectRatio === "portrait" ? "24px 32px" : "20px 28px",
           }}
         >
-          {activeCue.text}
-        </p>
+          <p
+            className="m-0 text-center font-bold uppercase leading-[1.3] tracking-wide text-black"
+            style={{
+              fontFamily,
+              fontSize,
+            }}
+          >
+            {activeCue.text}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -134,16 +147,19 @@ function VisualizerBars({ aspectRatio, heightFactors }: VisualizerBarsProps) {
     >
       {heightFactors.map((factor, i) => {
         const barHeight = maxBarHeight * Math.min(1, factor);
+        // Alternate between accent and white bars for visual interest
+        const isAccent = i % 2 === 0;
         return (
           <div
             // Bars are at fixed positions, only heights change - index key is appropriate
             // eslint-disable-next-line react/no-array-index-key
             key={i}
-            className="bg-accent"
             style={{
               width: barWidth,
               height: barHeight,
-              borderRadius: barWidth / 2,
+              backgroundColor: isAccent ? "#FF6101" : "#FFFFFF",
+              border: "2px solid #000000",
+              // Sharp corners - no border radius for brutalist aesthetic
             }}
           />
         );
@@ -272,17 +288,42 @@ export function SocialClipComposition({
 
   return (
     <div
-      className="relative overflow-hidden bg-linear-to-b from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a]"
-      style={{ width, height }}
+      className="relative overflow-hidden"
+      style={{
+        width,
+        height,
+        backgroundColor: "#F5F0E8", // Warm paper-like beige
+      }}
     >
-      {/* Background pattern */}
+      {/* Brutalist grid pattern background */}
       <div
         className="absolute inset-0"
         style={{
           backgroundImage: `
-            radial-gradient(circle at 20% 30%, rgba(255, 97, 1, 0.08) 0%, transparent 50%),
-            radial-gradient(circle at 80% 70%, rgba(255, 97, 1, 0.06) 0%, transparent 50%)
+            linear-gradient(to right, #000000 2px, transparent 2px),
+            linear-gradient(to bottom, #000000 2px, transparent 2px)
           `,
+          backgroundSize: `${aspectRatio === "portrait" ? 60 : 80}px ${aspectRatio === "portrait" ? 60 : 80}px`,
+          opacity: 0.04,
+        }}
+      />
+      {/* Accent corner blocks for visual interest */}
+      <div
+        className="absolute border-4 border-black bg-accent"
+        style={{
+          top: aspectRatio === "portrait" ? 40 : 20,
+          right: aspectRatio === "portrait" ? 40 : 20,
+          width: aspectRatio === "portrait" ? 60 : 40,
+          height: aspectRatio === "portrait" ? 60 : 40,
+        }}
+      />
+      <div
+        className="absolute border-4 border-black bg-black"
+        style={{
+          bottom: aspectRatio === "portrait" ? 120 : 80,
+          left: aspectRatio === "portrait" ? 40 : 20,
+          width: aspectRatio === "portrait" ? 40 : 30,
+          height: aspectRatio === "portrait" ? 40 : 30,
         }}
       />
 
@@ -294,25 +335,38 @@ export function SocialClipComposition({
         />
       )}
 
-      {/* Title (if provided) */}
+      {/* Title (if provided) - brutalist block with hard shadow */}
       {title && (
         <div
           className="absolute left-10 right-10 flex justify-center"
           style={{ top: aspectRatio === "portrait" ? 120 : 60 }}
         >
-          <div
-            className="border-3 border-black bg-accent"
-            style={{ padding: aspectRatio === "portrait" ? "16px 28px" : "12px 24px" }}
-          >
-            <span
-              className="font-bold uppercase tracking-wide text-black"
+          <div className="relative">
+            {/* Shadow layer - offset div behind main content */}
+            <div
+              className="absolute inset-0 bg-black"
               style={{
-                fontFamily,
-                fontSize: aspectRatio === "portrait" ? 28 : 24,
+                transform: `translate(${aspectRatio === "portrait" ? 6 : 4}px, ${aspectRatio === "portrait" ? 6 : 4}px)`,
+              }}
+            />
+            {/* Main content layer */}
+            <div
+              className="relative border-4 border-black bg-accent"
+              style={{
+                padding: aspectRatio === "portrait" ? "16px 28px" : "12px 24px",
               }}
             >
-              {title}
-            </span>
+              <span
+                className="font-black uppercase tracking-widest text-black"
+                style={{
+                  fontFamily,
+                  fontSize: aspectRatio === "portrait" ? 28 : 24,
+                  letterSpacing: "0.15em",
+                }}
+              >
+                {title}
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -331,16 +385,17 @@ export function SocialClipComposition({
         aspectRatio={aspectRatio}
       />
 
-      {/* Bottom branding bar */}
+      {/* Bottom branding bar - brutalist strip */}
       <div
-        className="absolute inset-x-0 bottom-0 flex items-center justify-center border-t-3 border-accent bg-black"
+        className="absolute inset-x-0 bottom-0 flex items-center justify-center border-t-4 border-black bg-accent"
         style={{ height: aspectRatio === "portrait" ? 80 : 50 }}
       >
         <span
-          className="font-bold uppercase tracking-widest text-accent"
+          className="font-black uppercase text-black"
           style={{
             fontFamily,
-            fontSize: aspectRatio === "portrait" ? 18 : 14,
+            fontSize: aspectRatio === "portrait" ? 20 : 16,
+            letterSpacing: "0.25em",
           }}
         >
           DEMUXED STUDIO
