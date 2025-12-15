@@ -83,6 +83,25 @@ async function importMuxAssets() {
       const playbackId = asset.playback_ids?.find(p => p.policy === "public")?.id
         || asset.playback_ids?.[0]?.id;
 
+      // Fetch transcript VTT if available
+      let transcriptVtt: string | null = null;
+      const transcriptTrack = asset.tracks?.find(
+        t => t.type === "text" && t.text_type === "subtitles" && t.status === "ready" && t.language_code === languageCode
+      );
+
+      if (transcriptTrack && playbackId) {
+        try {
+          const vttUrl = `https://stream.mux.com/${playbackId}/text/${transcriptTrack.id}.vtt`;
+          const vttResponse = await fetch(vttUrl);
+          if (vttResponse.ok) {
+            transcriptVtt = await vttResponse.text();
+            console.log(`✓ Fetched transcript VTT (${transcriptVtt.length} chars)`);
+          }
+        } catch (e) {
+          console.log(`  Could not fetch transcript: ${e}`);
+        }
+      }
+
       // Insert or update video record
       const [video] = await db
         .insert(schema.videos)
@@ -93,6 +112,7 @@ async function importMuxAssets() {
           meta: asset as unknown as Record<string, unknown>,
           aspectRatio: asset.aspect_ratio || null,
           duration: asset.duration || null,
+          transcriptEnVtt: transcriptVtt,
         })
         .onConflictDoUpdate({
           target: schema.videos.muxAssetId,
@@ -102,6 +122,7 @@ async function importMuxAssets() {
             meta: asset as unknown as Record<string, unknown>,
             aspectRatio: asset.aspect_ratio || null,
             duration: asset.duration || null,
+            transcriptEnVtt: transcriptVtt,
             updatedAt: new Date(),
           },
         })
