@@ -588,7 +588,7 @@ export function Layer3SocialClips({
 
       {/* Info text */}
       <p className="text-[10px] text-foreground-muted" style={{ fontFamily: "var(--font-space-mono)" }}>
-        Renders 3 aspect ratios for social sharing.
+        Renders 3 aspect ratios with Remotion.
       </p>
     </div>
   );
