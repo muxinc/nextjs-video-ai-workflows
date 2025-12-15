@@ -44,6 +44,10 @@ const EnvSchema = z.object({
   // Supabase (for persisted asset metadata storage)
   NEXT_PUBLIC_SUPABASE_URL: requiredString("Supabase project URL.", "Required to connect to Supabase."),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: requiredString("Supabase anonymous/public key.", "Required to connect to Supabase."),
+
+  // Remotion Lambda (required for rendering videos)
+  REMOTION_AWS_ACCESS_KEY_ID: requiredString("Remotion AWS access key ID.", "Required to render videos."),
+  REMOTION_AWS_SECRET_ACCESS_KEY: requiredString("Remotion AWS secret access key.", "Required to render videos."),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
