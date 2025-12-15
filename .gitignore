@@ -20,6 +20,9 @@
 # production
 /build
 
+#cursor
+.cursor/*
+
 # misc
 .DS_Store
 *.pem

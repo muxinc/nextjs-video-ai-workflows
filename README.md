@@ -31,6 +31,37 @@ Inspect workflow runs locally:
 npx workflow web
 ```
 
+## Remotion support
+
+Remotion is used within this example app for composing `@mux/ai` with video rendering.
+
+### Local Development
+
+```bash
+# Open the Remotion Studio for live preview and iteration
+npm run remotion:studio
+
+# Render a video locally (for testing)
+# Pass the composition name as an argument
+npm run remotion:render:local MyComposition
+
+# Optionally specify an output path
+npm run remotion:render:local MyComposition out/foo.mp4
+```
+
+### Production Deployment
+
+```bash
+# Deploy Remotion site to AWS Lambda for serverless rendering
+npm run remotion:deploy
+```
+
+> **Note:** `remotion:deploy` bundles and deploys your Remotion site to AWS Lambda for production video rendering. This is **not for development** — use `remotion:studio` and `remotion:render:local` for local dev and testing.
+
+### Automated Deployment
+
+Remotion is automatically deployed to AWS Lambda when changes to `remotion/` are merged into `main`. See [DOCS/AUTOMATED-REMOTION-DEPLOYMENTS.md](./DOCS/AUTOMATED-REMOTION-DEPLOYMENTS.md) for details.
+
 ## Environment Variables
 
 See `AGENTS.md` for the full list. At minimum you'll need:

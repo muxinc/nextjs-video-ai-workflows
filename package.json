@@ -8,8 +8,9 @@
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "remotion:studio": "npx remotion studio remotion/index.ts",
-    "remotion:deploy": "npx remotion lambda sites create remotion/index.ts --site-name=nextjs-video-ai-workflows"
+    "remotion:studio": "remotion studio remotion/index.ts",
+    "remotion:render:local": "remotion render",
+    "remotion:deploy": "node remotion/deploy.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.86",
@@ -19,6 +20,7 @@
     "@remotion/cli": "4.0.390",
     "@remotion/google-fonts": "4.0.390",
     "@remotion/lambda": "4.0.390",
+    "@remotion/tailwind-v4": "4.0.390",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.87.1",
     "ai": "^5.0.113",

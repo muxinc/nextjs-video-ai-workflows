@@ -21,19 +21,10 @@ export function MyComposition() {
   });
 
   return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: "#000",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
+    <AbsoluteFill className="bg-black flex justify-center items-center">
       <span
+        className="text-white font-bold text-[120px]"
         style={{
-          color: "#fff",
-          fontWeight: "bold",
-          fontSize: 120,
           fontFamily,
           opacity,
           transform: `scale(${scale})`,

@@ -256,6 +256,38 @@ Remotion is used **only in Layer 3** (connectors) to demonstrate composing `@mux
 
 **Preview is unlimited and free.** Users can tweak timing, captions, audio, branding without triggering any backend work. Rendering only happens when they click "Render clip".
 
+### Configuration
+
+Remotion files live in the `remotion/` directory:
+
+| File                   | Purpose                                   |
+| ---------------------- | ----------------------------------------- |
+| `index.ts`             | Entry point registering compositions      |
+| `root.tsx`             | Root component wrapping all compositions  |
+| `composition.tsx`      | Video composition definitions             |
+| `config.mjs`           | Remotion configuration (frame rate, etc.) |
+| `webpack-override.mjs` | Custom webpack config for bundling        |
+| `deploy.mjs`           | Lambda deployment script                  |
+
+### NPM scripts
+
+```bash
+# Development — opens Remotion Studio for live preview
+npm run remotion:studio
+
+# Local render — test rendering videos on your machine
+# Pass the composition name as an argument
+npm run remotion:render:local MyComposition
+
+# Optionally specify an output path
+npm run remotion:render:local MyComposition out/foo.mp4
+
+# Production deploy — bundle and deploy to AWS Lambda
+npm run remotion:deploy
+```
+
+**Important:** `remotion:deploy` is for **production use only**. It bundles your Remotion site and deploys it to AWS Lambda for serverless video rendering. Use `remotion:studio` and `remotion:render:local` during development.
+
 ---
 
 ## Design principles

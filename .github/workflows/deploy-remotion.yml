@@ -1,0 +1,76 @@
+name: Deploy Remotion
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "remotion/**"
+      - remotion.config.ts
+      - package.json
+      - package-lock.json
+
+jobs:
+  deploy:
+    name: Deploy Remotion Lambda
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine if we should deploy
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          # If remotion files changed, deploy.
+          if git diff --name-only "$BEFORE" "$AFTER" | grep -Eq '^(remotion/|remotion\.config\.ts$)'; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # If package.json changed and any @remotion/* dependency line changed, deploy.
+          if git diff --name-only "$BEFORE" "$AFTER" | grep -qx 'package.json'; then
+            if git diff "$BEFORE" "$AFTER" -- package.json | grep -Eq '^\+.*"@remotion/|^\-.*"@remotion/'; then
+              echo "deploy=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          # If package-lock.json changed and it includes @remotion/, deploy.
+          if git diff --name-only "$BEFORE" "$AFTER" | grep -qx 'package-lock.json'; then
+            if git diff "$BEFORE" "$AFTER" -- package-lock.json | grep -Eq '"@remotion/'; then
+              echo "deploy=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          echo "deploy=false" >> "$GITHUB_OUTPUT"
+
+      - name: Stop if nothing relevant changed
+        if: steps.changes.outputs.deploy != 'true'
+        run: echo "No relevant changes; skipping deploy."
+
+      - name: Setup Node.js
+        if: steps.changes.outputs.deploy == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.changes.outputs.deploy == 'true'
+        run: npm ci
+
+      - name: Deploy Remotion site
+        if: steps.changes.outputs.deploy == 'true'
+        run: npm run remotion:deploy
+        env:
+          REMOTION_AWS_ACCESS_KEY_ID: ${{ secrets.REMOTION_AWS_ACCESS_KEY_ID }}
+          REMOTION_AWS_SECRET_ACCESS_KEY: ${{ secrets.REMOTION_AWS_SECRET_ACCESS_KEY }}
