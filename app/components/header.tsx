@@ -20,16 +20,16 @@ export function Header({ currentPath }: HeaderProps) {
             className="flex min-w-0 flex-1 flex-col gap-1 leading-none md:flex-row md:items-baseline md:gap-2"
           >
             <h1
-              className="text-xl font-extrabold leading-none tracking-[0.12em]"
+              className="text-xl font-extrabold leading-none tracking-[0.08em]"
               style={{ fontFamily: "var(--font-syne)" }}
             >
-              DEMUXED
+              @mux/ai
             </h1>
             <span
-              className="text-sm font-bold leading-none tracking-[0.15em]"
+              className="text-sm font-bold leading-none tracking-[0.08em]"
               style={{ fontFamily: "var(--font-syne)" }}
             >
-              STUDIO
+              workflows demo
             </span>
           </Link>
 

@@ -74,9 +74,8 @@ MUX_TOKEN_SECRET=
 # OpenAI (required for embeddings)
 OPENAI_API_KEY=
 
-# Supabase (asset metadata + search)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# Database (PostgreSQL with pgvector) — required to store/search the Mux catalog metadata
+DATABASE_URL=
 ```
 
 ### Supabase Types

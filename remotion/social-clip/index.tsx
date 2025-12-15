@@ -391,14 +391,14 @@ export function SocialClipComposition({
         style={{ height: aspectRatio === "portrait" ? 80 : 50 }}
       >
         <span
-          className="font-black uppercase text-black"
+          className="font-black text-black"
           style={{
             fontFamily,
             fontSize: aspectRatio === "portrait" ? 20 : 16,
             letterSpacing: "0.25em",
           }}
         >
-          DEMUXED STUDIO
+          @mux/ai workflows demo
         </span>
       </div>
     </div>

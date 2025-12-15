@@ -42,7 +42,7 @@ const EnvSchema = z.object({
   S3_SECRET_ACCESS_KEY: requiredString("S3 secret access key for translation workflows.", "Required to store translated artifacts."),
 
   // Database (PostgreSQL with pgvector)
-  DATABASE_URL: requiredString("PostgreSQL connection string.", "Required to connect to the database."),
+  DATABASE_URL: requiredString("PostgreSQL connection string (pgvector). Required to store/search the Mux catalog metadata.", "Required to connect to the database."),
 
   // Remotion Lambda (required for rendering videos)
   REMOTION_AWS_ACCESS_KEY_ID: requiredString("Remotion AWS access key ID.", "Required to render videos."),
