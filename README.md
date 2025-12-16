@@ -138,7 +138,7 @@ app/media/[slug]/
 ├── media-content.tsx
 ├── page.tsx
 ├── localization/
-│   ├── actions.ts      (start/poll caption & audio translation workflows)
+│   ├── actions.ts      (captions & audio translation)
 │   ├── constants.ts
 │   └── ui.tsx
 ├── player/
@@ -146,6 +146,11 @@ app/media/[slug]/
 │   ├── provider.tsx
 │   ├── ui.tsx
 │   └── use-player.ts
+├── social-clips/
+│   ├── actions.ts      (clip creation & Remotion Lambda rendering)
+│   ├── constants.ts
+│   ├── preview.tsx     (client-side Remotion Player preview)
+│   └── ui.tsx
 ├── summarize-and-tag/
 │   ├── actions.ts      (start/poll summary generation workflow)
 │   └── ui.tsx
