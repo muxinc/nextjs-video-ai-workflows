@@ -73,10 +73,8 @@ export async function startSummaryWorkflowAction(
   }
 
   try {
-    const muxTone: MuxSummaryTone = tone === "neutral" ? "normal" : tone === "playful" ? "sassy" : "professional";
+    const muxTone: MuxSummaryTone = tone;
     const run = await start(getSummaryAndTagsWorkflow, [assetId, {
-      muxTokenId: env.MUX_TOKEN_ID,
-      muxTokenSecret: env.MUX_TOKEN_SECRET,
       tone: muxTone,
       includeTranscript: true,
       cleanTranscript: true,
