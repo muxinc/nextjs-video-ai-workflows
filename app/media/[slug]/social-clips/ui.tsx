@@ -19,7 +19,7 @@ import type { TranscriptCue, WorkflowStatus } from "../../types";
 import { CompletedStepIcon, CurrentStepIcon, PendingStepIcon, StatusBadge } from "../workflows-panel/ui";
 
 import type { RenderStepId, RenderVideoResult, SocialClipInput } from "./actions";
-import { pollSocialClipsRenderAction, startSocialClipsRenderAction } from "./actions";
+import { pollSocialClipsRenderAction, startSocialClipsRenderAction, suggestSocialClipRangeAction } from "./actions";
 import { ASPECT_RATIO_LABELS, POLL_INTERVAL, RENDER_STEPS } from "./constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,6 +86,10 @@ function getClipDataFromCues(cues: TranscriptCue[]): ClipData {
   );
 
   return { startTime, endTime, captions };
+}
+
+function getCaptionsForRange(cues: TranscriptCue[], startTime: number, endTime: number): TranscriptCue[] {
+  return cues.filter(cue => cue.endTime > startTime && cue.startTime < endTime);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -292,11 +296,29 @@ export function Layer3SocialClips({
   const [isPending, startTransition] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPollInFlightRef = useRef(false);
+  const [selectionRationale, setSelectionRationale] = useState<string | null>(null);
 
   // Compute clip data (timing + captions) from transcript cues
-  const clipData = useMemo(
+  const fallbackClipData = useMemo(
     () => getClipDataFromCues(transcriptCues),
     [transcriptCues],
+  );
+
+  const [selectedRangeOverride, setSelectedRangeOverride] = useState<null | { startTime: number; endTime: number }>(null);
+
+  const selectedStartTime = selectedRangeOverride?.startTime ?? fallbackClipData.startTime;
+  const selectedEndTime = selectedRangeOverride?.endTime ?? fallbackClipData.endTime;
+  const selectedCaptions = useMemo(
+    () => getCaptionsForRange(transcriptCues, selectedStartTime, selectedEndTime),
+    [selectedEndTime, selectedStartTime, transcriptCues],
+  );
+  const selectedClipData: ClipData = useMemo(
+    () => ({
+      startTime: selectedStartTime,
+      endTime: selectedEndTime,
+      captions: selectedCaptions,
+    }),
+    [selectedCaptions, selectedEndTime, selectedStartTime],
   );
 
   const stopPolling = useCallback(() => {
@@ -381,13 +403,30 @@ export function Layer3SocialClips({
     setClipStates(resetStates);
 
     startTransition(async () => {
+      // Ask the model to pick a strong clip window from the source VTT.
+      // If anything fails (no key, network, model errors), we fall back to the deterministic heuristic.
+      let startTime = fallbackClipData.startTime;
+      let endTime = fallbackClipData.endTime;
+      try {
+        const suggestion = await suggestSocialClipRangeAction(assetId);
+        startTime = suggestion.startTime;
+        endTime = suggestion.endTime;
+        setSelectionRationale(suggestion.rationale);
+      } catch {
+        // no-op: fallback remains in effect
+        setSelectionRationale(null);
+      }
+
+      const captions = getCaptionsForRange(transcriptCues, startTime, endTime);
+      setSelectedRangeOverride({ startTime, endTime });
+
       const clipInput: SocialClipInput = {
         playbackId,
         playbackPolicy,
-        startTime: clipData.startTime,
-        endTime: clipData.endTime,
+        startTime,
+        endTime,
         title,
-        captions: clipData.captions,
+        captions,
       };
 
       const result = await startSocialClipsRenderAction({
@@ -426,7 +465,7 @@ export function Layer3SocialClips({
       }, POLL_INTERVAL);
       void pollStatus();
     });
-  }, [assetId, playbackId, playbackPolicy, clipData, title, pollStatus, stopPolling]);
+  }, [assetId, fallbackClipData, playbackId, playbackPolicy, pollStatus, stopPolling, title, transcriptCues]);
 
   const resetWorkflow = useCallback(() => {
     const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
@@ -438,6 +477,8 @@ export function Layer3SocialClips({
       resetStates[ar] = { status: "idle", completedSteps: [], nextIndex: 0 };
     }
     setClipStates(resetStates);
+    setSelectedRangeOverride(null);
+    setSelectionRationale(null);
   }, [assetId]);
 
   // Cleanup on unmount
@@ -509,15 +550,27 @@ export function Layer3SocialClips({
 
       {/* Clip timing info */}
       {!allIdle && (
-        <div
-          className="text-[10px] text-foreground-muted"
-          style={{ fontFamily: "var(--font-space-mono)" }}
-        >
-          Clip:
-          {" "}
-          {formatTime(clipData.startTime)}
-          {" → "}
-          {formatTime(clipData.endTime)}
+        <div className="space-y-1">
+          <div
+            className="text-[10px] text-foreground-muted"
+            style={{ fontFamily: "var(--font-space-mono)" }}
+          >
+            Clip:
+            {" "}
+            {formatTime(selectedClipData.startTime)}
+            {" → "}
+            {formatTime(selectedClipData.endTime)}
+          </div>
+          {selectionRationale && (
+            <div
+              className="text-[10px] text-foreground-muted"
+              style={{ fontFamily: "var(--font-space-mono)" }}
+            >
+              Rationale:
+              {" "}
+              {selectionRationale}
+            </div>
+          )}
         </div>
       )}
 
