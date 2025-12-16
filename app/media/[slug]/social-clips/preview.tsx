@@ -76,19 +76,16 @@ export function SocialClipPreview({
   );
 
   // Input props for the composition
-  // For preview, we pass startTime=0 because the instant clip URL already handles the offset
+  // We pass the ORIGINAL startTime so the Audio component can use startFrom to skip
+  // to the correct position in the full audio file. Captions have original times
+  // and the composition uses clipStartTime for proper lookup.
   const inputProps: SocialClipProps = useMemo(
     () => ({
       audioUrl,
-      startTime: 0, // Audio is already clipped, so composition starts at 0
-      endTime: endTime - startTime, // Duration of the clip
+      startTime, // Original clip start - used for audio startFrom offset
+      endTime, // Original clip end
       title,
-      // Adjust caption times relative to clip start
-      captions: captions.map(cue => ({
-        ...cue,
-        startTime: cue.startTime - startTime,
-        endTime: cue.endTime - startTime,
-      })),
+      captions, // Original times - composition handles offset via clipStartTime
     }),
     [audioUrl, startTime, endTime, title, captions],
   );

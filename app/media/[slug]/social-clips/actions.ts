@@ -2,12 +2,13 @@
 
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
+import dedent from "dedent";
 import { headers } from "next/headers";
 import { getRun, start } from "workflow/api";
 import { z } from "zod";
 
 import { env } from "@/app/lib/env";
-import { findTextTrack, getMuxAudioUrl, getMuxInstantClipUrl, getPlaybackIdForAsset, getTrackVtt } from "@/app/lib/mux";
+import { findTextTrack, getMuxAudioUrl, getPlaybackIdForAsset, getTrackVtt } from "@/app/lib/mux";
 import type { PlaybackPolicy } from "@/app/lib/mux";
 import { parseVtt } from "@/app/media/[slug]/transcript/helpers";
 import type { WorkflowStatus } from "@/app/media/types";
@@ -79,13 +80,78 @@ export interface SuggestSocialClipRangeResult {
 }
 
 export interface PreviewClipResult extends SuggestSocialClipRangeResult {
-  /** Instant clip audio URL for Remotion Player preview */
-  instantClipAudioUrl: string;
+  /** Audio URL for Remotion Player preview (full audio, use startTime for offset) */
+  audioUrl: string;
   /** Playback ID for the asset */
   playbackId: string;
   /** Playback policy */
   playbackPolicy: PlaybackPolicy;
+  /**
+   * Captions with ORIGINAL video times (not adjusted).
+   * The Remotion composition handles the offset using startTime/clipStartTime.
+   */
+  captions: CaptionCue[];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Prompts
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CLIP_SELECTION_SYSTEM_PROMPT = dedent`
+  <role>
+    You are an expert video editor specializing in creating viral social media clips.
+    Your goal is to identify the most engaging, shareable moments from longer content.
+  </role>
+
+  <context>
+    You are given candidate clip windows extracted from video transcripts.
+    Each candidate includes an excerpt of the spoken content and timing information.
+    Your job is to select the single best segment for a social media clip.
+  </context>
+
+  <selection_criteria>
+    Choose segments that:
+    - Stand alone without needing additional context
+    - Have a clear point, punchline, or compelling insight
+    - Are interesting and engaging out of context
+    - Start with strong hooks that immediately grab attention
+    - End on a complete thought or natural conclusion
+  </selection_criteria>
+
+  <timing_guidelines>
+    Target duration is approximately 15 seconds, but natural cue boundaries take priority.
+
+    DO:
+    - Align start/end times with natural speech boundaries (sentence ends, pauses)
+    - Extend slightly past 15s if it means completing a thought or sentence
+    - Start slightly before 15s if it captures a complete, punchy moment
+    - Respect the natural rhythm of the speaker
+    - Use the candidate's startTime and endTime as your boundaries
+
+    DON'T:
+    - Cut off mid-sentence or mid-word to hit exactly 15 seconds
+    - Start in the middle of a thought
+    - End abruptly if the speaker is still making their point
+    - Sacrifice content quality for arbitrary duration targets
+
+    Acceptable range: 10-20 seconds, with 12-18 seconds being ideal.
+  </timing_guidelines>
+
+  <content_to_avoid>
+    - Introductions ("Hey everyone, welcome to...")
+    - Outros and closings ("Thanks for watching", "Subscribe", "See you next time")
+    - Housekeeping ("Before we get started...", "Quick announcement...")
+    - Sponsor reads and advertisements
+    - Meta-commentary about the video itself
+    - Filler content with low information density
+  </content_to_avoid>
+
+  <output_requirements>
+    - Select exactly one candidate from the provided list
+    - Return startTime and endTime in seconds
+    - Times must fall within the chosen candidate's boundaries
+    - Provide a brief rationale explaining your choice
+  </output_requirements>`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -232,19 +298,15 @@ export async function suggestSocialClipRangeAction(assetId: string): Promise<Sug
   const { object } = await generateObject({
     model: openai("gpt-5.2"),
     schema: SuggestSchema,
-    system: [
-      "You are a video editor choosing a single highlight window for a social clip.",
-      "Pick a segment that stands alone, has a clear point, and is interesting out of context.",
-      "Avoid intros/outros, housekeeping, sponsor reads, and 'thanks for watching' moments.",
-      "Use only the provided candidates; keep the clip around ~15 seconds.",
-      "Return startTime/endTime in seconds that lie within the chosen candidate.",
-    ].join("\n"),
-    prompt: [
-      "Candidates (id, startTime, endTime, excerpt):",
-      JSON.stringify(candidates, null, 2),
-      "",
-      "Choose the best candidate and return the JSON object matching the schema.",
-    ].join("\n"),
+    system: CLIP_SELECTION_SYSTEM_PROMPT,
+    prompt: dedent`
+      <candidates>
+        ${JSON.stringify(candidates, null, 2)}
+      </candidates>
+
+      Select the best candidate and return your choice as a JSON object.
+      Remember: prefer natural speech boundaries over exact duration targets.
+    `,
   });
 
   const chosen = candidates.find(c => c.id === object.candidateId) ?? candidates[0];
@@ -267,6 +329,9 @@ export async function suggestSocialClipRangeAction(assetId: string): Promise<Sug
  *
  * Uses Mux's instant clipping feature to generate an audio URL that streams
  * just the selected segment, enabling immediate preview playback.
+ *
+ * IMPORTANT: Returns captions from the SAME VTT source used for AI clip selection
+ * to ensure caption timing aligns with the selected clip range.
  */
 export async function getPreviewClipAction(assetId: string): Promise<PreviewClipResult> {
   // Get asset and playback info
@@ -278,7 +343,7 @@ export async function getPreviewClipAction(assetId: string): Promise<PreviewClip
     throw new Error("No ready text track found for this asset.");
   }
 
-  // Get VTT and parse cues
+  // Get VTT and parse cues - this is the SAME source used for AI clip selection
   const vtt = await getTrackVtt(playbackId, track.id);
   const cues = parseVtt(vtt);
 
@@ -302,19 +367,15 @@ export async function getPreviewClipAction(assetId: string): Promise<PreviewClip
         const { object } = await generateObject({
           model: openai("gpt-5.2"),
           schema: SuggestSchema,
-          system: [
-            "You are a video editor choosing a single highlight window for a social clip.",
-            "Pick a segment that stands alone, has a clear point, and is interesting out of context.",
-            "Avoid intros/outros, housekeeping, sponsor reads, and 'thanks for watching' moments.",
-            "Use only the provided candidates; keep the clip around ~15 seconds.",
-            "Return startTime/endTime in seconds that lie within the chosen candidate.",
-          ].join("\n"),
-          prompt: [
-            "Candidates (id, startTime, endTime, excerpt):",
-            JSON.stringify(candidates, null, 2),
-            "",
-            "Choose the best candidate and return the JSON object matching the schema.",
-          ].join("\n"),
+          system: CLIP_SELECTION_SYSTEM_PROMPT,
+          prompt: dedent`
+            <candidates>
+              ${JSON.stringify(candidates, null, 2)}
+            </candidates>
+
+            Select the best candidate and return your choice as a JSON object.
+            Remember: prefer natural speech boundaries over exact duration targets.
+          `,
         });
 
         const chosen = candidates.find(c => c.id === object.candidateId) ?? candidates[0];
@@ -335,14 +396,22 @@ export async function getPreviewClipAction(assetId: string): Promise<PreviewClip
     }
   }
 
-  // Generate instant clip audio URL for preview
-  const instantClipAudioUrl = await getMuxInstantClipUrl(
-    playbackId,
-    policy,
-    startTime,
-    endTime,
-    "audio",
-  );
+  // Generate audio URL for preview
+  // Note: We use the full audio URL and handle offset via startFrom in Remotion
+  // because static audio renditions don't support instant clip time parameters
+  const audioUrl = await getMuxAudioUrl(playbackId, policy);
+
+  // Filter captions from the SAME cues used for AI selection to ensure alignment
+  // Include cues that overlap with the clip time range
+  // Keep ORIGINAL times - the Remotion composition handles offset via clipStartTime
+  const filteredCaptions: CaptionCue[] = cues
+    .filter(cue => cue.endTime > startTime && cue.startTime < endTime)
+    .map(cue => ({
+      id: cue.id,
+      startTime: cue.startTime,
+      endTime: cue.endTime,
+      text: cue.text,
+    }));
 
   return {
     startTime,
@@ -350,9 +419,10 @@ export async function getPreviewClipAction(assetId: string): Promise<PreviewClip
     trackId: track.id,
     languageCode: track.language_code ?? undefined,
     rationale,
-    instantClipAudioUrl,
+    audioUrl,
     playbackId,
     playbackPolicy: policy,
+    captions: filteredCaptions,
   };
 }
 

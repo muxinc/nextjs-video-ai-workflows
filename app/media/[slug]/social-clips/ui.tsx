@@ -310,7 +310,8 @@ export function Layer3SocialClips({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPollInFlightRef = useRef(false);
 
-  // Compute clip data (timing + captions) from transcript cues
+  // Compute fallback clip data (timing + captions) from transcript cues
+  // Only used when preview hasn't been generated yet
   const fallbackClipData = useMemo(
     () => getClipDataFromCues(transcriptCues),
     [transcriptCues],
@@ -319,21 +320,23 @@ export function Layer3SocialClips({
   // Get selected clip data from preview or fallback
   const selectedStartTime = previewState.clipData?.startTime ?? fallbackClipData.startTime;
   const selectedEndTime = previewState.clipData?.endTime ?? fallbackClipData.endTime;
-  const selectedCaptions = useMemo(
-    () => getCaptionsForRange(transcriptCues, selectedStartTime, selectedEndTime),
-    [selectedEndTime, selectedStartTime, transcriptCues],
-  );
 
-  // Convert TranscriptCue[] to CaptionCue[] for the Remotion preview
-  const previewCaptions: CaptionCue[] = useMemo(
-    () => selectedCaptions.map(cue => ({
+  // Use captions from the action result when available (with ORIGINAL times).
+  // The Remotion composition handles offset via clipStartTime/startFrom.
+  const previewCaptions: CaptionCue[] = useMemo(() => {
+    // When preview data is available, use captions from the action
+    if (previewState.clipData?.captions) {
+      return previewState.clipData.captions;
+    }
+
+    // Fallback: filter from transcriptCues for initial state
+    return getCaptionsForRange(transcriptCues, selectedStartTime, selectedEndTime).map(cue => ({
       id: cue.id,
       startTime: cue.startTime,
       endTime: cue.endTime,
       text: cue.text,
-    })),
-    [selectedCaptions],
-  );
+    }));
+  }, [previewState.clipData?.captions, transcriptCues, selectedStartTime, selectedEndTime]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -439,6 +442,10 @@ export function Layer3SocialClips({
 
     startTransition(async () => {
       const { startTime, endTime } = previewState.clipData!;
+
+      // For RENDER, we need captions with ORIGINAL times (not adjusted)
+      // because the render workflow uses a full audio file with startFrom offset.
+      // The Remotion composition expects original times and uses clipStartTime for lookup.
       const captions = getCaptionsForRange(transcriptCues, startTime, endTime);
 
       const clipInput: SocialClipInput = {
@@ -611,7 +618,7 @@ export function Layer3SocialClips({
             transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
           >
             <AspectRatioTabs
-              audioUrl={previewState.clipData.instantClipAudioUrl}
+              audioUrl={previewState.clipData.audioUrl}
               startTime={previewState.clipData.startTime}
               endTime={previewState.clipData.endTime}
               title={title}

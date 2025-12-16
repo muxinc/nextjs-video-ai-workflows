@@ -29,6 +29,7 @@
     "@remotion/player": "4.0.390",
     "@remotion/tailwind-v4": "4.0.390",
     "ai": "^5.0.113",
+    "dedent": "^1.7.0",
     "drizzle-orm": "^0.45.1",
     "motion": "^12.23.26",
     "next": "16.0.10",
