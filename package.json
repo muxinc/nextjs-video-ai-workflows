@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.86",
-    "@mux/ai": "latest",
+    "@mux/ai": "0.3.0",
     "@mux/mux-node": "^12.8.1",
     "@mux/mux-player-react": "^3.10.1",
     "@remotion/cli": "4.0.390",
