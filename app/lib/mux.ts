@@ -182,6 +182,53 @@ export async function getMuxAudioUrl(
   return `${baseUrl}?token=${token}`;
 }
 
+/**
+ * Generates a Mux instant clip URL for streaming a specific segment of a video.
+ *
+ * Uses Mux's instant clipping feature with `asset_start_time` and `asset_end_time`
+ * query parameters. This is faster than rendering a static clip because it streams
+ * the segment directly without any processing delay.
+ *
+ * See: https://www.mux.com/blog/instant-clipping-update
+ *
+ * @param playbackId - The Mux playback ID
+ * @param policy - The playback policy ("public" or "signed")
+ * @param startTime - Start time in seconds
+ * @param endTime - End time in seconds
+ * @param format - Output format: "hls" for .m3u8, "audio" for audio-only .m4a
+ * @returns The instant clip streaming URL
+ */
+export async function getMuxInstantClipUrl(
+  playbackId: string,
+  policy: PlaybackPolicy,
+  startTime: number,
+  endTime: number,
+  format: "hls" | "audio" = "audio",
+): Promise<string> {
+  // Build the instant clip URL with time parameters
+  const extension = format === "hls" ? ".m3u8" : "/audio.m4a";
+  const baseUrl = `https://stream.mux.com/${playbackId}${extension}`;
+  const params = new URLSearchParams({
+    asset_start_time: startTime.toString(),
+    asset_end_time: endTime.toString(),
+  });
+
+  if (policy === "public") {
+    return `${baseUrl}?${params.toString()}`;
+  }
+
+  // Signed playback requires a token
+  if (!hasSigningKeys()) {
+    throw new Error(
+      "Cannot generate signed instant clip URL: MUX_SIGNING_KEY and MUX_PRIVATE_KEY must be configured",
+    );
+  }
+
+  const token = await generatePlaybackToken(playbackId, "video");
+  params.set("token", token);
+  return `${baseUrl}?${params.toString()}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Audio Track Helpers
 // ─────────────────────────────────────────────────────────────────────────────
