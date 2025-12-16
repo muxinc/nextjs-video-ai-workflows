@@ -178,12 +178,11 @@ async function waitForMuxTrack(
 
 /**
  * Computes the initial language selection based on in-flight workflows.
- * This runs synchronously during initial render to ensure workflow hooks
- * get the correct targetLang from the start (resumability).
+ * Called only after mount to avoid hydration mismatch.
  */
-function getInitialLanguageFromWorkflows(assetId: string): TargetLanguage {
+function getLanguageFromWorkflows(assetId: string): TargetLanguage | null {
   if (typeof window === "undefined") {
-    return TARGET_LANGUAGES[0];
+    return null;
   }
 
   const workflows = getAllInFlightWorkflows(assetId)
@@ -198,7 +197,7 @@ function getInitialLanguageFromWorkflows(assetId: string): TargetLanguage {
     }
   }
 
-  return TARGET_LANGUAGES[0];
+  return null;
 }
 
 function useTranslationWorkflow<TStep extends string>({
@@ -216,23 +215,13 @@ function useTranslationWorkflow<TStep extends string>({
   pollAction: (runId: string, startIndex: number) => Promise<{ status: TranslationStatus; completedSteps: TStep[]; nextIndex: number; error?: string }>;
   onCompleted?: () => Promise<void>;
 }) {
-  // Initialize state from localStorage (like layer-1-summary.tsx).
-  // Reads once on mount; polling updates state directly thereafter.
-  const [state, setState] = useState<WorkflowState<TStep>>(() => {
-    const stored = getWorkflowProgress(assetId, workflowType, targetLang);
-    if (stored && (stored.status === "queued" || stored.status === "running")) {
-      // Check for stale localStorage entries (> 30 min old)
-      const startedAtMs = Date.parse(stored.startedAt);
-      const ageMs = Number.isFinite(startedAtMs) ? Date.now() - startedAtMs : Number.POSITIVE_INFINITY;
-      const staleAfterMs = 30 * 60 * 1000;
-      if (ageMs > staleAfterMs) {
-        // Don't rehydrate stale entries; they'll be cleared in useEffect
-        return { status: "idle", completedSteps: [] };
-      }
-      return { status: "starting", completedSteps: [], runId: stored.workflowRunId };
-    }
-    return { status: "idle", completedSteps: [] };
+  // Start with idle state to avoid hydration mismatch (server has no localStorage).
+  // Rehydration from localStorage happens in useEffect after mount.
+  const [state, setState] = useState<WorkflowState<TStep>>({
+    status: "idle",
+    completedSteps: [],
   });
+  const [hasMounted, setHasMounted] = useState(false);
 
   const [isPending, startTransition] = useTransition();
 
@@ -333,8 +322,31 @@ function useTranslationWorkflow<TStep extends string>({
   // Cleanup polling on unmount
   useEffect(() => stopPolling, [stopPolling]);
 
+  // Rehydrate state from localStorage after mount to avoid hydration mismatch
+  useEffect(() => {
+    setHasMounted(true);
+    const stored = getWorkflowProgress(assetId, workflowType, targetLang);
+    if (stored && (stored.status === "queued" || stored.status === "running")) {
+      // Check for stale localStorage entries (> 30 min old)
+      const startedAtMs = Date.parse(stored.startedAt);
+      const ageMs = Number.isFinite(startedAtMs) ? Date.now() - startedAtMs : Number.POSITIVE_INFINITY;
+      const staleAfterMs = 30 * 60 * 1000;
+      if (ageMs > staleAfterMs) {
+        // Clear stale entries
+        clearWorkflowProgress(assetId, workflowType, targetLang);
+        return;
+      }
+      setState({ status: "starting", completedSteps: [], runId: stored.workflowRunId });
+    }
+  }, [assetId, workflowType, targetLang]);
+
   // Resume polling if we rehydrated an in-flight workflow from localStorage
   useEffect(() => {
+    // Wait until after hydration rehydration
+    if (!hasMounted) {
+      return;
+    }
+
     if (!state.runId) {
       return;
     }
@@ -356,7 +368,7 @@ function useTranslationWorkflow<TStep extends string>({
         }
       };
     }
-  }, [pollStatus, state.runId, state.status]);
+  }, [hasMounted, pollStatus, state.runId, state.status]);
 
   return { isPending, isRunning, startWorkflow, state };
 }
@@ -463,12 +475,18 @@ function RequirementBadge({ children }: { children: string }) {
 
 export function Layer2Localization({ assetId, hasElevenLabsKey }: Layer2LocalizationProps) {
   const { refreshPlayer } = usePlayer();
-  // Use lazy initializer to compute initial language synchronously during first render.
-  // This ensures workflow hooks get the correct targetLang for resumability.
-  const [selectedLang, setSelectedLang] = useState<TargetLanguage>(
-    () => getInitialLanguageFromWorkflows(assetId),
-  );
+  // Start with default language to avoid hydration mismatch.
+  // Rehydrate from localStorage in useEffect after mount for resumability.
+  const [selectedLang, setSelectedLang] = useState<TargetLanguage>(TARGET_LANGUAGES[0]);
   const shouldReduceMotion = useReducedMotion();
+
+  // Rehydrate language selection from in-flight workflows after mount
+  useEffect(() => {
+    const langFromWorkflows = getLanguageFromWorkflows(assetId);
+    if (langFromWorkflows) {
+      setSelectedLang(langFromWorkflows);
+    }
+  }, [assetId]);
 
   const captions = useTranslationWorkflow<CaptionStepId>({
     assetId,
