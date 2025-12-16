@@ -12,15 +12,16 @@ import {
   startWorkflow as persistWorkflowStart,
 } from "@/app/lib/workflow-state";
 import { mergeSteps } from "@/app/media/[slug]/workflows-panel/helpers";
-import type { AspectRatio } from "@/remotion/social-clip/constants";
+import type { AspectRatio, CaptionCue } from "@/remotion/social-clip/constants";
 import { ASPECT_RATIO_CONFIG } from "@/remotion/social-clip/constants";
 
 import type { TranscriptCue, WorkflowStatus } from "../../types";
 import { CompletedStepIcon, CurrentStepIcon, PendingStepIcon, StatusBadge } from "../workflows-panel/ui";
 
-import type { RenderStepId, RenderVideoResult, SocialClipInput } from "./actions";
-import { pollSocialClipsRenderAction, startSocialClipsRenderAction, suggestSocialClipRangeAction } from "./actions";
+import type { PreviewClipResult, RenderStepId, RenderVideoResult, SocialClipInput } from "./actions";
+import { getPreviewClipAction, pollSocialClipsRenderAction, startSocialClipsRenderAction } from "./actions";
 import { ASPECT_RATIO_LABELS, POLL_INTERVAL, RENDER_STEPS } from "./constants";
+import { AspectRatioTabs } from "./preview";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -34,6 +35,15 @@ interface ClipState {
   error?: string;
   result?: RenderVideoResult;
   renderProgress?: number;
+}
+
+/** Preview state for the two-phase flow: preview → render */
+type PreviewPhase = "idle" | "loading" | "ready" | "rendering" | "completed" | "failed";
+
+interface PreviewState {
+  phase: PreviewPhase;
+  clipData?: PreviewClipResult;
+  error?: string;
 }
 
 interface Layer3SocialClipsProps {
@@ -259,6 +269,9 @@ export function Layer3SocialClips({
 }: Layer3SocialClipsProps) {
   const shouldReduceMotion = useReducedMotion();
 
+  // Preview state (two-phase flow: preview → render)
+  const [previewState, setPreviewState] = useState<PreviewState>({ phase: "idle" });
+
   // Initialize clip states
   const initialClipStates = (): Record<AspectRatio, ClipState> => {
     const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
@@ -296,7 +309,6 @@ export function Layer3SocialClips({
   const [isPending, startTransition] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPollInFlightRef = useRef(false);
-  const [selectionRationale, setSelectionRationale] = useState<string | null>(null);
 
   // Compute clip data (timing + captions) from transcript cues
   const fallbackClipData = useMemo(
@@ -304,21 +316,23 @@ export function Layer3SocialClips({
     [transcriptCues],
   );
 
-  const [selectedRangeOverride, setSelectedRangeOverride] = useState<null | { startTime: number; endTime: number }>(null);
-
-  const selectedStartTime = selectedRangeOverride?.startTime ?? fallbackClipData.startTime;
-  const selectedEndTime = selectedRangeOverride?.endTime ?? fallbackClipData.endTime;
+  // Get selected clip data from preview or fallback
+  const selectedStartTime = previewState.clipData?.startTime ?? fallbackClipData.startTime;
+  const selectedEndTime = previewState.clipData?.endTime ?? fallbackClipData.endTime;
   const selectedCaptions = useMemo(
     () => getCaptionsForRange(transcriptCues, selectedStartTime, selectedEndTime),
     [selectedEndTime, selectedStartTime, transcriptCues],
   );
-  const selectedClipData: ClipData = useMemo(
-    () => ({
-      startTime: selectedStartTime,
-      endTime: selectedEndTime,
-      captions: selectedCaptions,
-    }),
-    [selectedCaptions, selectedEndTime, selectedStartTime],
+
+  // Convert TranscriptCue[] to CaptionCue[] for the Remotion preview
+  const previewCaptions: CaptionCue[] = useMemo(
+    () => selectedCaptions.map(cue => ({
+      id: cue.id,
+      startTime: cue.startTime,
+      endTime: cue.endTime,
+      text: cue.text,
+    })),
+    [selectedCaptions],
   );
 
   const stopPolling = useCallback(() => {
@@ -391,8 +405,29 @@ export function Layer3SocialClips({
     }
   }, [assetId, clipStates, stopPolling]);
 
+  // Generate preview using AI suggestion + instant clip audio
+  const generatePreview = useCallback(() => {
+    setPreviewState({ phase: "loading" });
+
+    startTransition(async () => {
+      try {
+        const clipData = await getPreviewClipAction(assetId);
+        setPreviewState({ phase: "ready", clipData });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to generate preview";
+        setPreviewState({ phase: "failed", error: message });
+      }
+    });
+  }, [assetId]);
+
+  // Start rendering (after preview is ready)
   const startRender = useCallback(() => {
+    if (previewState.phase !== "ready" || !previewState.clipData) {
+      return;
+    }
+
     stopPolling();
+    setPreviewState(prev => ({ ...prev, phase: "rendering" }));
 
     // Reset all clips to starting state
     const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
@@ -403,22 +438,8 @@ export function Layer3SocialClips({
     setClipStates(resetStates);
 
     startTransition(async () => {
-      // Ask the model to pick a strong clip window from the source VTT.
-      // If anything fails (no key, network, model errors), we fall back to the deterministic heuristic.
-      let startTime = fallbackClipData.startTime;
-      let endTime = fallbackClipData.endTime;
-      try {
-        const suggestion = await suggestSocialClipRangeAction(assetId);
-        startTime = suggestion.startTime;
-        endTime = suggestion.endTime;
-        setSelectionRationale(suggestion.rationale);
-      } catch {
-        // no-op: fallback remains in effect
-        setSelectionRationale(null);
-      }
-
+      const { startTime, endTime } = previewState.clipData!;
       const captions = getCaptionsForRange(transcriptCues, startTime, endTime);
-      setSelectedRangeOverride({ startTime, endTime });
 
       const clipInput: SocialClipInput = {
         playbackId,
@@ -465,7 +486,7 @@ export function Layer3SocialClips({
       }, POLL_INTERVAL);
       void pollStatus();
     });
-  }, [assetId, fallbackClipData, playbackId, playbackPolicy, pollStatus, stopPolling, title, transcriptCues]);
+  }, [assetId, playbackId, playbackPolicy, pollStatus, previewState, stopPolling, title, transcriptCues]);
 
   const resetWorkflow = useCallback(() => {
     const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
@@ -477,8 +498,7 @@ export function Layer3SocialClips({
       resetStates[ar] = { status: "idle", completedSteps: [], nextIndex: 0 };
     }
     setClipStates(resetStates);
-    setSelectedRangeOverride(null);
-    setSelectionRationale(null);
+    setPreviewState({ phase: "idle" });
   }, [assetId]);
 
   // Cleanup on unmount
@@ -505,23 +525,30 @@ export function Layer3SocialClips({
     };
   }, [clipStates, pollStatus]);
 
-  // Compute aggregate status
+  // Compute aggregate status for render phase
   const states = Object.values(clipStates);
   const anyRunning = states.some(s => s.status === "running" || s.status === "starting");
   const anyFailed = states.some(s => s.status === "failed");
   const allCompleted = states.every(s => s.status === "completed");
-  const allIdle = states.every(s => s.status === "idle");
 
-  const aggregateStatus: WorkflowStatus = anyRunning ?
+  // Compute overall status including preview phase
+  const aggregateStatus: WorkflowStatus = previewState.phase === "loading" ?
     "running" :
-    anyFailed ?
+    previewState.phase === "failed" ?
       "failed" :
-      allCompleted ?
-        "completed" :
-        "idle";
+      anyRunning ?
+        "running" :
+        anyFailed ?
+          "failed" :
+          allCompleted ?
+            "completed" :
+            previewState.phase === "ready" ?
+              "idle" :
+              "idle";
 
-  const isWorking = isPending || anyRunning;
+  const isWorking = isPending || anyRunning || previewState.phase === "loading";
   const showClipCards = anyRunning || allCompleted || anyFailed;
+  const showPreview = previewState.phase === "ready" && previewState.clipData && !showClipCards;
 
   // Format clip timing for display
   const formatTime = (seconds: number) => {
@@ -549,7 +576,7 @@ export function Layer3SocialClips({
       </div>
 
       {/* Clip timing info */}
-      {!allIdle && (
+      {previewState.clipData && (
         <div className="space-y-1">
           <div
             className="text-[10px] text-foreground-muted"
@@ -557,25 +584,76 @@ export function Layer3SocialClips({
           >
             Clip:
             {" "}
-            {formatTime(selectedClipData.startTime)}
+            {formatTime(previewState.clipData.startTime)}
             {" → "}
-            {formatTime(selectedClipData.endTime)}
+            {formatTime(previewState.clipData.endTime)}
           </div>
-          {selectionRationale && (
+          {previewState.clipData.rationale && (
             <div
               className="text-[10px] text-foreground-muted"
               style={{ fontFamily: "var(--font-space-mono)" }}
             >
               Rationale:
               {" "}
-              {selectionRationale}
+              {previewState.clipData.rationale}
             </div>
           )}
         </div>
       )}
 
-      {/* Render Button */}
-      {!allCompleted && (
+      {/* Preview Player (Remotion Player with instant clip audio) */}
+      <AnimatePresence initial={false}>
+        {showPreview && previewState.clipData && (
+          <motion.div
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
+          >
+            <AspectRatioTabs
+              audioUrl={previewState.clipData.instantClipAudioUrl}
+              startTime={previewState.clipData.startTime}
+              endTime={previewState.clipData.endTime}
+              title={title}
+              captions={previewCaptions}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Generate Preview Button (Phase 1) */}
+      {previewState.phase === "idle" && (
+        <button
+          type="button"
+          className="btn-action w-full"
+          onClick={generatePreview}
+          disabled={isPending}
+        >
+          {isPending && (
+            <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          )}
+          {isPending ? "GENERATING..." : "[GENERATE PREVIEW]"}
+          {!isPending && (
+            <span className="arrow-icon ml-2">↗</span>
+          )}
+        </button>
+      )}
+
+      {/* Loading state */}
+      {previewState.phase === "loading" && (
+        <div className="flex items-center justify-center gap-2 border-2 border-border bg-surface-elevated p-3">
+          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <span
+            className="text-[11px] text-foreground-muted"
+            style={{ fontFamily: "var(--font-space-mono)" }}
+          >
+            Finding best clip segment...
+          </span>
+        </div>
+      )}
+
+      {/* Render Button (Phase 2 - after preview is ready) */}
+      {showPreview && !allCompleted && (
         <button
           type="button"
           className="btn-action w-full"
@@ -585,11 +663,24 @@ export function Layer3SocialClips({
           {isWorking && (
             <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
           )}
-          {isWorking ? "RENDERING..." : "[RENDER VIDEOS]"}
+          {isWorking ? "RENDERING..." : "[RENDER & DOWNLOAD]"}
           {!isWorking && (
             <span className="arrow-icon ml-2">↗</span>
           )}
         </button>
+      )}
+
+      {/* Rendering in progress */}
+      {previewState.phase === "rendering" && !showClipCards && (
+        <div className="flex items-center justify-center gap-2 border-2 border-border bg-surface-elevated p-3">
+          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <span
+            className="text-[11px] text-foreground-muted"
+            style={{ fontFamily: "var(--font-space-mono)" }}
+          >
+            Starting render workflows...
+          </span>
+        </div>
       )}
 
       {/* Clip Cards */}
@@ -621,7 +712,14 @@ export function Layer3SocialClips({
         </div>
       )}
 
-      {/* Error message */}
+      {/* Preview error message */}
+      {previewState.phase === "failed" && previewState.error && (
+        <div className="border-2 border-[#dc2626] bg-[#fde8e8] p-2 text-xs text-[#dc2626]">
+          {previewState.error}
+        </div>
+      )}
+
+      {/* Render error message */}
       {anyFailed && !anyRunning && (
         <div className="border-2 border-[#dc2626] bg-[#fde8e8] p-2 text-xs text-[#dc2626]">
           Some clips failed to render.
@@ -629,19 +727,35 @@ export function Layer3SocialClips({
       )}
 
       {/* Reset button */}
-      {(allCompleted || (anyFailed && !anyRunning)) && (
+      {(allCompleted || (anyFailed && !anyRunning) || previewState.phase === "failed") && (
         <button
           type="button"
           onClick={resetWorkflow}
           className="btn-action w-full bg-surface-elevated text-foreground hover:bg-surface"
         >
-          {anyFailed ? "[TRY AGAIN]" : "[RESET]"}
+          {anyFailed || previewState.phase === "failed" ? "[TRY AGAIN]" : "[RESET]"}
+        </button>
+      )}
+
+      {/* New Preview button after completion */}
+      {allCompleted && (
+        <button
+          type="button"
+          onClick={generatePreview}
+          className="btn-action w-full"
+          disabled={isPending}
+        >
+          [NEW CLIP]
         </button>
       )}
 
       {/* Info text */}
       <p className="text-[10px] text-foreground-muted" style={{ fontFamily: "var(--font-space-mono)" }}>
-        Renders 3 aspect ratios with Remotion.
+        {previewState.phase === "idle" ?
+          "AI selects the best clip. Preview instantly before rendering." :
+          showPreview ?
+            "Preview your clip. Click render when ready to download." :
+            "Renders 3 aspect ratios with Remotion."}
       </p>
     </div>
   );

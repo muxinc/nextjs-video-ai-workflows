@@ -26,6 +26,7 @@
     "@remotion/google-fonts": "4.0.390",
     "@remotion/lambda": "4.0.390",
     "@remotion/media-utils": "4.0.390",
+    "@remotion/player": "4.0.390",
     "@remotion/tailwind-v4": "4.0.390",
     "ai": "^5.0.113",
     "drizzle-orm": "^0.45.1",

@@ -7,7 +7,7 @@ import { getRun, start } from "workflow/api";
 import { z } from "zod";
 
 import { env } from "@/app/lib/env";
-import { findTextTrack, getMuxAudioUrl, getPlaybackIdForAsset, getTrackVtt } from "@/app/lib/mux";
+import { findTextTrack, getMuxAudioUrl, getMuxInstantClipUrl, getPlaybackIdForAsset, getTrackVtt } from "@/app/lib/mux";
 import type { PlaybackPolicy } from "@/app/lib/mux";
 import { parseVtt } from "@/app/media/[slug]/transcript/helpers";
 import type { WorkflowStatus } from "@/app/media/types";
@@ -76,6 +76,15 @@ export interface SuggestSocialClipRangeResult {
   trackId: string;
   languageCode?: string;
   rationale: string;
+}
+
+export interface PreviewClipResult extends SuggestSocialClipRangeResult {
+  /** Instant clip audio URL for Remotion Player preview */
+  instantClipAudioUrl: string;
+  /** Playback ID for the asset */
+  playbackId: string;
+  /** Playback policy */
+  playbackPolicy: PlaybackPolicy;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -248,6 +257,102 @@ export async function suggestSocialClipRangeAction(assetId: string): Promise<Sug
     trackId: track.id,
     languageCode: track.language_code ?? undefined,
     rationale: object.rationale,
+  };
+}
+
+/**
+ * Get a preview-ready clip suggestion with instant clip audio URL.
+ * This is designed for the preview flow - it returns everything needed to
+ * render a Remotion Player preview instantly without waiting for a render.
+ *
+ * Uses Mux's instant clipping feature to generate an audio URL that streams
+ * just the selected segment, enabling immediate preview playback.
+ */
+export async function getPreviewClipAction(assetId: string): Promise<PreviewClipResult> {
+  // Get asset and playback info
+  const { asset, playbackId, policy } = await getPlaybackIdForAsset(assetId);
+
+  // Find text track for transcript
+  const track = findTextTrack(asset, "en") ?? findTextTrack(asset);
+  if (!track?.id) {
+    throw new Error("No ready text track found for this asset.");
+  }
+
+  // Get VTT and parse cues
+  const vtt = await getTrackVtt(playbackId, track.id);
+  const cues = parseVtt(vtt);
+
+  let startTime = 0;
+  let endTime = 15;
+  let rationale = "Default clip: first 15 seconds.";
+
+  if (cues.length > 0) {
+    // Try to get an AI-suggested clip range
+    const candidates = pickClipCandidates(cues, { targetDurationS: 15, minDurationS: 8, maxCandidates: 12 });
+
+    if (candidates.length > 0) {
+      try {
+        const SuggestSchema = z.object({
+          candidateId: z.string(),
+          startTime: z.number(),
+          endTime: z.number(),
+          rationale: z.string(),
+        });
+
+        const { object } = await generateObject({
+          model: openai("gpt-5.2"),
+          schema: SuggestSchema,
+          system: [
+            "You are a video editor choosing a single highlight window for a social clip.",
+            "Pick a segment that stands alone, has a clear point, and is interesting out of context.",
+            "Avoid intros/outros, housekeeping, sponsor reads, and 'thanks for watching' moments.",
+            "Use only the provided candidates; keep the clip around ~15 seconds.",
+            "Return startTime/endTime in seconds that lie within the chosen candidate.",
+          ].join("\n"),
+          prompt: [
+            "Candidates (id, startTime, endTime, excerpt):",
+            JSON.stringify(candidates, null, 2),
+            "",
+            "Choose the best candidate and return the JSON object matching the schema.",
+          ].join("\n"),
+        });
+
+        const chosen = candidates.find(c => c.id === object.candidateId) ?? candidates[0];
+        startTime = clamp(object.startTime, chosen.startTime, chosen.endTime - 5);
+        endTime = clamp(object.endTime, startTime + 5, chosen.endTime);
+        rationale = object.rationale;
+      } catch {
+        // Fallback to first candidate if AI fails
+        startTime = candidates[0].startTime;
+        endTime = candidates[0].endTime;
+        rationale = "AI suggestion unavailable; using best heuristic match.";
+      }
+    } else {
+      // Use first cue window
+      startTime = cues[0].startTime;
+      endTime = Math.max(cues[0].endTime, cues[0].startTime + 8);
+      rationale = "Unable to form candidates; using first cue window.";
+    }
+  }
+
+  // Generate instant clip audio URL for preview
+  const instantClipAudioUrl = await getMuxInstantClipUrl(
+    playbackId,
+    policy,
+    startTime,
+    endTime,
+    "audio",
+  );
+
+  return {
+    startTime,
+    endTime,
+    trackId: track.id,
+    languageCode: track.language_code ?? undefined,
+    rationale,
+    instantClipAudioUrl,
+    playbackId,
+    playbackPolicy: policy,
   };
 }
 
