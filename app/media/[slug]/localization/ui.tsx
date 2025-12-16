@@ -178,12 +178,11 @@ async function waitForMuxTrack(
 
 /**
  * Computes the initial language selection based on in-flight workflows.
- * This runs synchronously during initial render to ensure workflow hooks
- * get the correct targetLang from the start (resumability).
+ * Called only after mount to avoid hydration mismatch.
  */
-function getInitialLanguageFromWorkflows(assetId: string): TargetLanguage {
+function getLanguageFromWorkflows(assetId: string): TargetLanguage | null {
   if (typeof window === "undefined") {
-    return TARGET_LANGUAGES[0];
+    return null;
   }
 
   const workflows = getAllInFlightWorkflows(assetId)
@@ -198,7 +197,7 @@ function getInitialLanguageFromWorkflows(assetId: string): TargetLanguage {
     }
   }
 
-  return TARGET_LANGUAGES[0];
+  return null;
 }
 
 function useTranslationWorkflow<TStep extends string>({
@@ -216,22 +215,11 @@ function useTranslationWorkflow<TStep extends string>({
   pollAction: (runId: string, startIndex: number) => Promise<{ status: TranslationStatus; completedSteps: TStep[]; nextIndex: number; error?: string }>;
   onCompleted?: () => Promise<void>;
 }) {
-  // Initialize state from localStorage (like layer-1-summary.tsx).
-  // Reads once on mount; polling updates state directly thereafter.
-  const [state, setState] = useState<WorkflowState<TStep>>(() => {
-    const stored = getWorkflowProgress(assetId, workflowType, targetLang);
-    if (stored && (stored.status === "queued" || stored.status === "running")) {
-      // Check for stale localStorage entries (> 30 min old)
-      const startedAtMs = Date.parse(stored.startedAt);
-      const ageMs = Number.isFinite(startedAtMs) ? Date.now() - startedAtMs : Number.POSITIVE_INFINITY;
-      const staleAfterMs = 30 * 60 * 1000;
-      if (ageMs > staleAfterMs) {
-        // Don't rehydrate stale entries; they'll be cleared in useEffect
-        return { status: "idle", completedSteps: [] };
-      }
-      return { status: "starting", completedSteps: [], runId: stored.workflowRunId };
-    }
-    return { status: "idle", completedSteps: [] };
+  // Start with idle state to avoid hydration mismatch (server has no localStorage).
+  // Rehydration from localStorage happens in useEffect after mount.
+  const [state, setState] = useState<WorkflowState<TStep>>({
+    status: "idle",
+    completedSteps: [],
   });
 
   const [isPending, startTransition] = useTransition();
@@ -333,30 +321,39 @@ function useTranslationWorkflow<TStep extends string>({
   // Cleanup polling on unmount
   useEffect(() => stopPolling, [stopPolling]);
 
-  // Resume polling if we rehydrated an in-flight workflow from localStorage
+  // Rehydrate state from localStorage after mount and resume polling if needed.
+  // Combined into one effect to avoid the hasMounted state pattern.
   useEffect(() => {
-    if (!state.runId) {
+    const stored = getWorkflowProgress(assetId, workflowType, targetLang);
+    if (!stored || (stored.status !== "queued" && stored.status !== "running")) {
       return;
     }
 
-    // Already polling
-    if (pollRef.current) {
+    // Check for stale localStorage entries (> 30 min old)
+    const startedAtMs = Date.parse(stored.startedAt);
+    const ageMs = Number.isFinite(startedAtMs) ? Date.now() - startedAtMs : Number.POSITIVE_INFINITY;
+    const staleAfterMs = 30 * 60 * 1000;
+    if (ageMs > staleAfterMs) {
+      clearWorkflowProgress(assetId, workflowType, targetLang);
       return;
     }
 
-    if (state.status === "starting" || state.status === "running") {
-      pollRef.current = setInterval(() => {
-        void pollStatus(state.runId!);
-      }, POLL_INTERVAL);
-      void pollStatus(state.runId);
-      return () => {
-        if (pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-      };
-    }
-  }, [pollStatus, state.runId, state.status]);
+    // Rehydrate state and start polling — intentional post-mount hydration from localStorage
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setState({ status: "starting", completedSteps: [], runId: stored.workflowRunId });
+
+    pollRef.current = setInterval(() => {
+      void pollStatus(stored.workflowRunId);
+    }, POLL_INTERVAL);
+    void pollStatus(stored.workflowRunId);
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [assetId, workflowType, targetLang, pollStatus]);
 
   return { isPending, isRunning, startWorkflow, state };
 }
@@ -463,12 +460,20 @@ function RequirementBadge({ children }: { children: string }) {
 
 export function Layer2Localization({ assetId, hasElevenLabsKey }: Layer2LocalizationProps) {
   const { refreshPlayer } = usePlayer();
-  // Use lazy initializer to compute initial language synchronously during first render.
-  // This ensures workflow hooks get the correct targetLang for resumability.
-  const [selectedLang, setSelectedLang] = useState<TargetLanguage>(
-    () => getInitialLanguageFromWorkflows(assetId),
-  );
+  // Start with default language to avoid hydration mismatch.
+  // Rehydrate from localStorage in useEffect after mount for resumability.
+  const [selectedLang, setSelectedLang] = useState<TargetLanguage>(TARGET_LANGUAGES[0]);
   const shouldReduceMotion = useReducedMotion();
+
+  // Rehydrate language selection from in-flight workflows after mount
+  // Intentional post-mount hydration from localStorage
+  useEffect(() => {
+    const langFromWorkflows = getLanguageFromWorkflows(assetId);
+    if (langFromWorkflows) {
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+      setSelectedLang(langFromWorkflows);
+    }
+  }, [assetId]);
 
   const captions = useTranslationWorkflow<CaptionStepId>({
     assetId,
