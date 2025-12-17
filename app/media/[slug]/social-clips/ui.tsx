@@ -634,7 +634,7 @@ export function Layer3SocialClips({
           type="button"
           className="btn-action w-full"
           onClick={generatePreview}
-          disabled={isPending}
+          disabled={isPending || !hasRemotionLambdaKeys}
         >
           {isPending && (
             <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
