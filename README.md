@@ -35,6 +35,20 @@ Inspect workflow runs locally:
 npx workflow web
 ```
 
+## Rate Limiting
+
+This demo includes IP-based rate limiting to protect against excessive API costs. Limits are automatically bypassed in development mode.
+
+| Endpoint             | Limit | Window |
+| -------------------- | ----- | ------ |
+| `translate-audio`    | 3     | 24h    |
+| `translate-captions` | 10    | 24h    |
+| `render`             | 6     | 24h    |
+| `summary`            | 10    | 24h    |
+| `search`             | 50    | 1h     |
+
+See [DOCS/RATE-LIMITS.md](./DOCS/RATE-LIMITS.md) for implementation details and maintenance.
+
 ## Remotion support
 
 Remotion is used within this example app for composing `@mux/ai` with video rendering.
@@ -173,6 +187,7 @@ app/media/[slug]/
 - [`context/design-explained.md`](./context/design-explained.md) — visual design and UX patterns
 - [`context/implementation-explained.md`](./context/implementation-explained.md) — routes, data model, and code patterns
 - [`AGENTS.md`](./AGENTS.md) — guidance for AI coding assistants
+- [`DOCS/RATE-LIMITS.md`](./DOCS/RATE-LIMITS.md) — rate limiting configuration and maintenance
 
 ## See Also
 

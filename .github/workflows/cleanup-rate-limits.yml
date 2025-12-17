@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       hours:
-        description: "Delete records older than X hours"
+        description: Delete records older than X hours
         required: false
         default: "168"
 
@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -32,4 +32,3 @@ jobs:
         run: npx tsx scripts/cleanup-rate-limits.ts ${{ github.event.inputs.hours || '168' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
