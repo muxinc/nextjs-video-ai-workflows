@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getRun, start } from "workflow/api";
 
+import {
+  addRateLimitHeaders,
+  checkRateLimit,
+  createRateLimitError,
+  getClientIpFromRequest,
+} from "@/app/lib/rate-limit";
 import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
 
 /**
@@ -9,6 +15,19 @@ import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
  */
 export async function POST(request: Request) {
   try {
+    // Check rate limit
+    const clientIp = getClientIpFromRequest(request);
+    const rateLimitResult = await checkRateLimit(clientIp, "translate-captions");
+
+    if (!rateLimitResult.allowed) {
+      const response = NextResponse.json(
+        createRateLimitError(rateLimitResult),
+        { status: 429 },
+      );
+      addRateLimitHeaders(response.headers, rateLimitResult);
+      return response;
+    }
+
     const { assetId, sourceLang = "en", targetLang } = await request.json();
 
     if (!assetId || !targetLang) {
@@ -25,11 +44,13 @@ export async function POST(request: Request) {
       targetLang,
     ]);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: "Caption translation workflow started",
       runId: run.runId,
       status: "running",
     });
+    addRateLimitHeaders(response.headers, rateLimitResult);
+    return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to start workflow";
     return NextResponse.json({ error: message }, { status: 500 });

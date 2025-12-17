@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { getRun, start } from "workflow/api";
 
 import { env } from "@/app/lib/env";
+import {
+  addRateLimitHeaders,
+  checkRateLimit,
+  createRateLimitError,
+  getClientIpFromRequest,
+} from "@/app/lib/rate-limit";
 import { translateAudioWorkflow } from "@/workflows/translate-audio";
 
 /**
@@ -15,6 +21,19 @@ export async function POST(request: Request) {
         { error: "ElevenLabs env key required" },
         { status: 501 },
       );
+    }
+
+    // Check rate limit
+    const clientIp = getClientIpFromRequest(request);
+    const rateLimitResult = await checkRateLimit(clientIp, "translate-audio");
+
+    if (!rateLimitResult.allowed) {
+      const response = NextResponse.json(
+        createRateLimitError(rateLimitResult),
+        { status: 429 },
+      );
+      addRateLimitHeaders(response.headers, rateLimitResult);
+      return response;
     }
 
     const { assetId, targetLang } = await request.json();
@@ -32,11 +51,13 @@ export async function POST(request: Request) {
       targetLang,
     ]);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: "Audio translation workflow started",
       runId: run.runId,
       status: "running",
     });
+    addRateLimitHeaders(response.headers, rateLimitResult);
+    return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to start workflow";
     return NextResponse.json({ error: message }, { status: 500 });

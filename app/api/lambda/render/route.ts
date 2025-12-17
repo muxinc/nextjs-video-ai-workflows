@@ -1,6 +1,13 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { env } from "@/app/lib/env";
+import {
+  addRateLimitHeaders,
+  checkRateLimit,
+  createRateLimitError,
+  getClientIpFromRequest,
+} from "@/app/lib/rate-limit";
 import { executeApi } from "@/app/lib/remotion/api-response";
 import {
   DISK,
@@ -17,7 +24,7 @@ const RouteRequestSchema = RenderRequest.extend({
   fileName: z.string().min(1),
 });
 
-export const POST = executeApi<RenderMediaOnLambdaOutput, typeof RouteRequestSchema>(
+const renderHandler = executeApi<RenderMediaOnLambdaOutput, typeof RouteRequestSchema>(
   RouteRequestSchema,
   async (_req, body) => {
     if (!env.REMOTION_AWS_ACCESS_KEY_ID) {
@@ -54,3 +61,24 @@ export const POST = executeApi<RenderMediaOnLambdaOutput, typeof RouteRequestSch
     return result;
   },
 );
+
+export async function POST(request: Request) {
+  // Check rate limit first (render is high cost)
+  const clientIp = getClientIpFromRequest(request);
+  const rateLimitResult = await checkRateLimit(clientIp, "render");
+
+  if (!rateLimitResult.allowed) {
+    const response = NextResponse.json(
+      createRateLimitError(rateLimitResult),
+      { status: 429 },
+    );
+    addRateLimitHeaders(response.headers, rateLimitResult);
+    return response;
+  }
+
+  // Clone the request since we need to read the body twice
+  // (once for rate limiting context, once for the handler)
+  const response = await renderHandler(request);
+  addRateLimitHeaders(response.headers, rateLimitResult);
+  return response;
+}

@@ -1,6 +1,6 @@
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
-import { searchVideoChunks } from "@/db/search";
+import { SearchRateLimitError, searchVideoChunks } from "@/db/search";
 import type { VideoChunkResult } from "@/db/search";
 
 import { SearchResults } from "./search-results";
@@ -59,8 +59,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     try {
       results = await searchVideoChunks(query, 20);
     } catch (e) {
-      console.error("Search error:", e);
-      error = "An error occurred while searching. Please try again.";
+      if (e instanceof SearchRateLimitError) {
+        error = e.message;
+      } else {
+        console.error("Search error:", e);
+        error = "An error occurred while searching. Please try again.";
+      }
     }
   }
 

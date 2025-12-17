@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getRun, start } from "workflow/api";
 
 import { env } from "@/app/lib/env";
+import { checkRateLimit, formatTimeUntilReset, getClientIp } from "@/app/lib/rate-limit";
 import type { WorkflowStatus } from "@/app/media/types";
 import { db, videos } from "@/db";
 import { getSummaryAndTagsWorkflow } from "@/workflows/get-summary-and-tags";
@@ -60,6 +61,19 @@ export async function startSummaryWorkflowAction(
 ): Promise<SummaryWorkflowStartResult> {
   if (!assetId) {
     return { runId: "", status: "failed", error: "Missing assetId." };
+  }
+
+  // Check rate limit
+  const clientIp = await getClientIp();
+  const rateLimitResult = await checkRateLimit(clientIp, "summary");
+
+  if (!rateLimitResult.allowed) {
+    const retryAfterSeconds = Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000);
+    return {
+      runId: "",
+      status: "failed",
+      error: `Rate limit exceeded. Try again ${formatTimeUntilReset(retryAfterSeconds)}.`,
+    };
   }
 
   const providerConfig = getProviderConfig();
