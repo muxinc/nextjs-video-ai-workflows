@@ -49,6 +49,20 @@ export const videoChunks = pgTable("video_chunks", {
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Rate Limits Table
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const rateLimits = pgTable("rate_limits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  identifier: text("identifier").notNull(), // IP address or fingerprint
+  endpoint: text("endpoint").notNull(), // e.g., "translate-audio", "render"
+  windowStart: timestamp("window_start").notNull(), // Start of rate limit window
+  requestCount: integer("request_count").notNull().default(1),
+}, table => [
+  index("rate_limits_lookup_idx").on(table.identifier, table.endpoint, table.windowStart),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Type exports
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -56,3 +70,5 @@ export type Video = typeof videos.$inferSelect;
 export type NewVideo = typeof videos.$inferInsert;
 export type VideoChunk = typeof videoChunks.$inferSelect;
 export type NewVideoChunk = typeof videoChunks.$inferInsert;
+export type RateLimit = typeof rateLimits.$inferSelect;
+export type NewRateLimit = typeof rateLimits.$inferInsert;
