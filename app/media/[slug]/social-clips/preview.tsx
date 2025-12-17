@@ -1,6 +1,7 @@
 "use client";
 
 import { Player } from "@remotion/player";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AbsoluteFill } from "remotion";
 
@@ -29,6 +30,10 @@ export interface SocialClipPreviewProps {
   aspectRatio: AspectRatio;
   /** Optional class name for the container */
   className?: string;
+  /** Initial frame to seek to on mount (for maintaining position across aspect ratio changes) */
+  initialFrame?: number;
+  /** Callback when frame updates (for tracking position across aspect ratio changes) */
+  onFrameUpdate?: (frame: number) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -53,6 +58,8 @@ export function SocialClipPreview({
   captions,
   aspectRatio,
   className = "",
+  initialFrame = 0,
+  onFrameUpdate,
 }: SocialClipPreviewProps) {
   const config = ASPECT_RATIO_CONFIG[aspectRatio];
   const Component = COMPOSITION_COMPONENTS[aspectRatio];
@@ -62,7 +69,7 @@ export function SocialClipPreview({
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentFrame, setCurrentFrame] = useState(0);
+  const [currentFrame, setCurrentFrame] = useState(initialFrame);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(true); // Start muted for audio autoplay workaround
   const [isDraggingTimeline, setIsDraggingTimeline] = useState(false);
@@ -107,6 +114,7 @@ export function SocialClipPreview({
 
   // Audio autoplay workaround: mute on mount, then unmute after a short delay
   // This tricks browsers into allowing audio playback
+  // Also seek to initial frame if provided (for maintaining position across aspect ratio changes)
   useEffect(() => {
     const player = playerRef.current;
     if (!player || isAudioReady) {
@@ -115,13 +123,17 @@ export function SocialClipPreview({
 
     // Small delay to ensure player is fully mounted
     const timer = setTimeout(() => {
+      // Seek to initial frame if provided
+      if (initialFrame > 0) {
+        player.seekTo(initialFrame);
+      }
       player.unmute();
       setIsMuted(false);
       setIsAudioReady(true);
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [isAudioReady]);
+  }, [isAudioReady, initialFrame]);
 
   // Set up event listeners for player state
   useEffect(() => {
@@ -136,6 +148,7 @@ export function SocialClipPreview({
     const handleFrameUpdate = (e: { detail: { frame: number } }) => {
       if (!isDraggingTimeline) {
         setCurrentFrame(e.detail.frame);
+        onFrameUpdate?.(e.detail.frame);
       }
     };
     const handleVolumeChange = (e: { detail: { volume: number } }) => {
@@ -162,7 +175,7 @@ export function SocialClipPreview({
       player.removeEventListener("volumechange", handleVolumeChange);
       player.removeEventListener("mutechange", handleMuteChange);
     };
-  }, [isDraggingTimeline, isDraggingVolume]);
+  }, [isDraggingTimeline, isDraggingVolume, onFrameUpdate]);
 
   // Toggle play/pause
   const handleTogglePlay = useCallback(() => {
@@ -569,6 +582,16 @@ export interface MultiAspectPreviewProps {
   onSelectAspectRatio: (ar: AspectRatio) => void;
 }
 
+// Calculate preview dimensions for a given aspect ratio
+function getPreviewDimensions(aspectRatio: AspectRatio) {
+  const config = ASPECT_RATIO_CONFIG[aspectRatio];
+  const previewWidth = aspectRatio === "landscape" ? 400 : aspectRatio === "square" ? 300 : 220;
+  const previewHeight = Math.round(previewWidth * (config.height / config.width));
+  // Add height for controls bar (approx 72px: padding + time display + timeline + volume)
+  const controlsHeight = 72;
+  return { width: previewWidth, height: previewHeight + controlsHeight };
+}
+
 export function MultiAspectPreview({
   audioUrl,
   startTime,
@@ -580,19 +603,50 @@ export function MultiAspectPreview({
 }: MultiAspectPreviewProps) {
   const aspectRatios: AspectRatio[] = ["portrait", "square", "landscape"];
 
+  // Track current frame across aspect ratio changes using a ref to avoid re-renders
+  const currentFrameRef = useRef(0);
+
+  const handleFrameUpdate = useCallback((frame: number) => {
+    currentFrameRef.current = frame;
+  }, []);
+
+  // Get dimensions for animation
+  const { width: targetWidth, height: targetHeight } = getPreviewDimensions(selectedAspectRatio);
+
   return (
     <div className="space-y-4">
-      {/* Main Preview */}
-      <div className="flex justify-center">
-        <SocialClipPreview
-          audioUrl={audioUrl}
-          startTime={startTime}
-          endTime={endTime}
-          title={title}
-          captions={captions}
-          aspectRatio={selectedAspectRatio}
-        />
-      </div>
+      {/* Animated container for smooth size transitions */}
+      <motion.div
+        className="flex justify-center"
+        animate={{
+          height: targetHeight,
+        }}
+        transition={{
+          height: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
+        }}
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={selectedAspectRatio}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            style={{ width: targetWidth }}
+          >
+            <SocialClipPreview
+              audioUrl={audioUrl}
+              startTime={startTime}
+              endTime={endTime}
+              title={title}
+              captions={captions}
+              aspectRatio={selectedAspectRatio}
+              initialFrame={currentFrameRef.current}
+              onFrameUpdate={handleFrameUpdate}
+            />
+          </motion.div>
+        </AnimatePresence>
+      </motion.div>
 
       {/* Aspect Ratio Selector */}
       <div className="flex items-center justify-center gap-2">
