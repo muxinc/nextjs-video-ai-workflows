@@ -63,6 +63,21 @@ export const rateLimits = pgTable("rate_limits", {
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Feature Metrics Table
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const featureMetrics = pgTable("feature_metrics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  feature: text("feature").notNull(), // e.g., "semantic-search-nav"
+  identifier: text("identifier"), // Optional IP address or fingerprint
+  metadata: jsonb("metadata"), // Optional extra info (e.g., search query, assetId)
+  createdAt: timestamp("created_at").defaultNow(),
+}, table => [
+  index("feature_metrics_feature_idx").on(table.feature),
+  index("feature_metrics_created_at_idx").on(table.createdAt),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Type exports
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -72,3 +87,5 @@ export type VideoChunk = typeof videoChunks.$inferSelect;
 export type NewVideoChunk = typeof videoChunks.$inferInsert;
 export type RateLimit = typeof rateLimits.$inferSelect;
 export type NewRateLimit = typeof rateLimits.$inferInsert;
+export type FeatureMetric = typeof featureMetrics.$inferSelect;
+export type NewFeatureMetric = typeof featureMetrics.$inferInsert;

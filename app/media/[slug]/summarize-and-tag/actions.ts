@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getRun, start } from "workflow/api";
 
 import { env } from "@/app/lib/env";
+import { recordMetric } from "@/app/lib/metrics";
 import { checkRateLimit, formatTimeUntilReset, getClientIp } from "@/app/lib/rate-limit";
 import type { WorkflowStatus } from "@/app/media/types";
 import { db, videos } from "@/db";
@@ -94,6 +95,9 @@ export async function startSummaryWorkflowAction(
       cleanTranscript: true,
       ...providerConfig,
     }]);
+
+    // Record metric
+    void recordMetric("summarize-and-tag", { assetId, tone });
 
     return { runId: run.runId, status: "running" };
   } catch (error) {

@@ -1,5 +1,6 @@
 import { Footer } from "@/app/components/footer";
 import { Header } from "@/app/components/header";
+import { recordMetric } from "@/app/lib/metrics";
 import { SearchRateLimitError, searchVideoChunks } from "@/db/search";
 import type { VideoChunkResult } from "@/db/search";
 
@@ -57,6 +58,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   if (query) {
     try {
+      // Record search metric
+      void recordMetric("semantic-search-nav", { query });
+
       results = await searchVideoChunks(query, 20);
     } catch (e) {
       if (e instanceof SearchRateLimitError) {

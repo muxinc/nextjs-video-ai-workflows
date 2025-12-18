@@ -10,7 +10,7 @@
     "lint:fix": "eslint . --fix",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio",
+    "db:studio": "drizzle-kit studio --port 4983",
     "import-mux-assets": "tsx scripts/import-mux-assets.ts",
     "remotion:studio": "remotion studio remotion/index.ts --port 5432",
     "remotion:render:local": "remotion render",

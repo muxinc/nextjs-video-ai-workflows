@@ -3,6 +3,7 @@
 import { getRun, start } from "workflow/api";
 
 import { env } from "@/app/lib/env";
+import { recordMetric } from "@/app/lib/metrics";
 import { findAudioTrack, findTextTrack, getAsset } from "@/app/lib/mux";
 import { translateAudioWorkflow } from "@/workflows/translate-audio";
 import { translateCaptionsWorkflow } from "@/workflows/translate-captions";
@@ -159,6 +160,9 @@ export async function startCaptionTranslationAction(
     // If we can't check, proceed with real workflow
   }
 
+  // Record metric
+  void recordMetric("translate-captions", { assetId, targetLang });
+
   return await startWorkflowAction(translateCaptionsWorkflow, [
     assetId,
     "en", // source language is always English for now
@@ -194,6 +198,9 @@ export async function startAudioTranslationAction(
   } catch {
     // If we can't check, proceed with real workflow
   }
+
+  // Record metric
+  void recordMetric("translate-audio", { assetId, targetLang });
 
   return await startWorkflowAction(translateAudioWorkflow, [assetId, targetLang]);
 }

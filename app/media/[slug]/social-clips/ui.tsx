@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
+import { recordMetric } from "@/app/lib/metrics-actions";
 import {
   clearWorkflowProgress,
   getWorkflowProgress,
@@ -165,10 +166,12 @@ function MiniStepProgress({
 function ClipCard({
   aspectRatio,
   state,
+  assetId,
   shouldReduceMotion,
 }: {
   aspectRatio: AspectRatio;
   state: ClipState;
+  assetId: string;
   shouldReduceMotion: boolean | null;
 }) {
   const config = ASPECT_RATIO_CONFIG[aspectRatio];
@@ -232,6 +235,7 @@ function ClipCard({
         <a
           href={state.result.url}
           download={`social-clip-${aspectRatio}.mp4`}
+          onClick={() => void recordMetric("download-social-clip", { assetId, aspectRatio })}
           className="flex h-8 w-8 items-center justify-center border-2 border-border bg-accent text-foreground transition-colors hover:bg-[#ff7f24]"
           title={`Download (${(state.result.size / 1024 / 1024).toFixed(1)} MB)`}
         >
@@ -410,6 +414,9 @@ export function Layer3SocialClips({
 
   // Generate preview using AI suggestion + instant clip audio
   const generatePreview = useCallback(() => {
+    // Record metric
+    void recordMetric("generate-preview", { assetId });
+
     setPreviewState({ phase: "loading" });
 
     startTransition(async () => {
@@ -705,6 +712,7 @@ export function Layer3SocialClips({
                 key={ar}
                 aspectRatio={ar}
                 state={clipStates[ar]}
+                assetId={assetId}
                 shouldReduceMotion={shouldReduceMotion}
               />
             ))}
