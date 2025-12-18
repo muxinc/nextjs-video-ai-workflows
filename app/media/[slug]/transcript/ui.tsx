@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
+import { recordMetric } from "@/app/lib/metrics-actions";
 import type { TranscriptCue } from "@/app/media/types";
 import { formatTime } from "@/app/media/utils";
 
@@ -253,6 +254,9 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
     e.preventDefault();
     if (!normalizedQuery || !muxAssetId)
       return;
+
+    // Record search metric
+    void recordMetric("semantic-search-transcript", { muxAssetId, query: searchQuery });
 
     startSearchTransition(async () => {
       // 1. Compute literal text matches (cues containing the query)
