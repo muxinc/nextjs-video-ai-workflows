@@ -162,7 +162,7 @@ app/media/[slug]/
 ├── player/
 │   ├── context.ts
 │   ├── provider.tsx
-│   ├── ui.tsx
+│   ├── ui.tsx          (Video.js player with Mux video and Mux Data)
 │   └── use-player.ts
 ├── social-clips/
 │   ├── actions.ts      (clip creation & Remotion Lambda rendering)

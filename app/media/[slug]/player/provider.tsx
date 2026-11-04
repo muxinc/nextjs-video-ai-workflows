@@ -4,8 +4,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { PlayerContext } from "./context";
 
-import type MuxPlayerElement from "@mux/mux-player";
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Provider
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,14 +11,15 @@ import type MuxPlayerElement from "@mux/mux-player";
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [playerKey, setPlayerKey] = useState(0);
-  const playerRef = useRef<MuxPlayerElement | null>(null);
+  const playerRef = useRef<HTMLVideoElement | null>(null);
   const pendingPlaybackStateRef = useRef<{ time: number; wasPaused: boolean } | null>(null);
 
   const seekTo = useCallback((time: number) => {
-    if (playerRef.current) {
-      playerRef.current.currentTime = time;
-      if (playerRef.current.paused) {
-        playerRef.current.play();
+    const media = playerRef.current;
+    if (media) {
+      media.currentTime = time;
+      if (media.paused) {
+        media.play().catch(() => {});
       }
     }
   }, []);

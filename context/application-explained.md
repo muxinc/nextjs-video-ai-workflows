@@ -129,7 +129,7 @@ The page is organized into clear sections that map to the layers:
 
 #### Section A: Video player + applied tracks
 
-Use a Mux player and expose track selectors:
+Use a [Video.js](https://videojs.org) player (`@videojs/react` with `@videojs/mux-video` and Mux Data) and expose track selectors:
 
 - **Caption selector**: Original (en) + translated captions added by Layer 2 workflows
 - **Audio selector**: Original audio + dubbed tracks added by Layer 2 workflows

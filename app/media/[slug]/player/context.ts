@@ -2,8 +2,6 @@
 
 import { createContext } from "react";
 
-import type MuxPlayerElement from "@mux/mux-player";
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -11,7 +9,7 @@ import type MuxPlayerElement from "@mux/mux-player";
 export interface PlayerContextValue {
   currentTime: number;
   setCurrentTime: (time: number) => void;
-  playerRef: React.RefObject<MuxPlayerElement | null>;
+  playerRef: React.RefObject<HTMLVideoElement | null>;
   seekTo: (time: number) => void;
   playerKey: number;
   refreshPlayer: () => void;
