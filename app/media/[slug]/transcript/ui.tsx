@@ -331,6 +331,7 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
               >
                 <input
                   type="text"
+                  name="transcript-search"
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -499,7 +500,7 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
                     "rgba(250, 204, 21, 0.08)" :
                     activeCue?.id === cue.id ?
                       "var(--surface-elevated)" :
-                      "transparent",
+                      "rgba(0, 0, 0, 0)",
               }}
               whileHover={{ backgroundColor: "var(--surface-elevated)" }}
               transition={{ duration: 0.2 }}
@@ -520,7 +521,7 @@ function TranscriptPanel({ cues, currentTime = 0, onSeek, muxAssetId, title }: T
                       "rgba(250, 204, 21, 0.5)" :
                       activeCue?.id === cue.id ?
                         "var(--accent)" :
-                        "transparent",
+                        "rgba(0, 0, 0, 0)",
                   opacity: currentHit?.cueId === cue.id ? [1, 0.5, 1] : 1,
                 }}
                 transition={{
